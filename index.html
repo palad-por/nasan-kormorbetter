@@ -1,0 +1,2230 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบรายงานและไกล่เกลี่ย กม.พึ่งได้ - อ.บ้านนาสาร</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Sarabun', sans-serif; background-color: #f0fdf4; }
+        .green-gradient { background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); }
+        .tab-btn { border-bottom: 4px solid transparent; color: #6b7280; transition: all 0.3s; }
+        .tab-active { border-bottom: 4px solid #16a34a; color: #16a34a; font-weight: bold; background-color: #f0fdf4; }
+        .input-field { width: 100%; border: 1px solid #d1d5db; border-radius: 0.5rem; padding: 0.75rem; outline: none; transition: all 0.2s; }
+        .input-field:focus { border-color: #16a34a; ring: 2px solid #16a34a; }
+        .input-disabled { background-color: #f3f4f6; color: #9ca3af; cursor: not-allowed; }
+        .card { background: white; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 20000; flex-direction: column; justify-content: center; align-items: center; }
+        .table-scroll tbody { display: block; max-height: 450px; overflow-y: auto; }
+        .table-scroll thead, .table-scroll tbody tr { display: table; width: 100%; table-layout: fixed; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        .modal { display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: #fefefe; margin: 5% auto; padding: 20px; border-radius: 10px; width: 90%; max-width: 800px; max-height: 80vh; overflow-y: auto; }
+        #duplicateModal .modal-content, #reporterScanModal .modal-content { max-width: 1000px; }
+        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .swal2-container { z-index: 30000 !important; }
+        .admin-subtab-btn { padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 600; color: #4b5563; background: #f3f4f6; transition: all 0.2s; }
+        .admin-subtab-active { background: #1f2937; color: white; }
+        /* บังคับให้หน้าต่างแก้ไข อยู่สูงกว่าหน้าต่างสแกนซ้ำซ้อนเสมอ */
+        #editModal { z-index: 10500 !important; }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-green-600 mb-4"></div>
+        <p class="text-xl font-bold text-green-800 animate-pulse" id="loadingText">กำลังดำเนินการ...</p>
+    </div>
+
+    <!-- Admin Edit Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h2 class="text-xl font-bold text-gray-800"><i class="fas fa-edit mr-2"></i>แก้ไขข้อมูล</h2>
+                <button type="button" onclick="closeEditModal()" class="text-gray-500 hover:text-red-500 text-2xl">&times;</button>
+            </div>
+            <form id="formAdminEdit" onsubmit="submitAdminEdit(event)" class="space-y-4">
+                <input type="hidden" id="edit_type" name="type">
+                <input type="hidden" id="edit_row" name="row">
+                <div id="editFormFields" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                <div class="pt-4 border-t flex justify-end gap-2">
+                    <button type="button" onclick="closeEditModal()" class="bg-gray-300 hover:bg-gray-400 px-4 py-2 rounded">ยกเลิก</button>
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-bold">บันทึกการแก้ไข</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Smart Scan Modal -->
+    <div id="duplicateModal" class="modal">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h2 class="text-xl font-bold text-red-700"><i class="fas fa-search-minus mr-2"></i>รายการที่ต้องสงสัยว่ารายงานซ้ำ</h2>
+                <button type="button" onclick="document.getElementById('duplicateModal').style.display='none'" class="text-gray-500 hover:text-red-500 text-2xl">&times;</button>
+            </div>
+            <div id="duplicateResults" class="space-y-4"></div>
+            <div class="pt-4 mt-4 border-t flex flex-wrap gap-3 justify-end items-center" id="duplicateModalFooter"></div>
+        </div>
+    </div>
+
+    <!-- Reporter Scan Modal -->
+    <div id="reporterScanModal" class="modal">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h2 class="text-xl font-bold text-blue-700"><i class="fas fa-user-edit mr-2"></i>ระบบค้นหาและรวมชื่อผู้รายงานที่พิมพ์ผิด</h2>
+                <button type="button" onclick="document.getElementById('reporterScanModal').style.display='none'" class="text-gray-500 hover:text-red-500 text-2xl">&times;</button>
+            </div>
+            <div class="bg-blue-50 p-3 text-sm text-blue-800 rounded mb-4">
+                <i class="fas fa-info-circle"></i> ระบบทำการเปรียบเทียบชื่อผู้รายงาน <b>เฉพาะภายในหมู่บ้านเดียวกัน</b> เท่านั้น หากพบกลุ่มชื่อที่คล้ายกัน แอดมินสามารถเลือกชื่อที่ถูกต้องเพื่อแก้ไขชื่ออื่นๆ ในกลุ่มให้ตรงกันทั้งหมดได้ (ทำงานแบบ Batch Update รวดเดียว)
+            </div>
+            <div id="reporterScanResults" class="space-y-4"></div>
+        </div>
+    </div>
+
+    <!-- Add Admin Modal -->
+    <div id="addAdminModal" class="modal">
+        <div class="modal-content max-w-md">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h2 class="text-xl font-bold text-green-700"><i class="fas fa-user-plus mr-2"></i>เพิ่มแอดมินระบบ</h2>
+                <button type="button" onclick="document.getElementById('addAdminModal').style.display='none'" class="text-gray-500 hover:text-red-500 text-2xl">&times;</button>
+            </div>
+            <form onsubmit="addAdminSubmit(event)" class="space-y-4">
+                <div><label class="block text-sm font-bold">Username <span class="text-red-500">*</span></label><input type="text" id="addAdminUser" required class="input-field"></div>
+                <div><label class="block text-sm font-bold">Password <span class="text-red-500">*</span></label><input type="text" id="addAdminPass" required class="input-field"></div>
+                <div>
+                    <label class="block text-sm font-bold">ระดับสิทธิ์ <span class="text-red-500">*</span></label>
+                    <select id="addAdminRole" class="input-field" onchange="toggleAddAdminTambon()" required>
+                        <option value="Tambon Admin">แอดมินตำบล (เข้าถึงเฉพาะตำบลที่ดูแล)</option>
+                        <option value="Assistant Master Admin">ผู้ช่วยแอดมินหลัก (เข้าถึงทุกตำบล)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold">สิทธิ์การดูแล (ตำบล) <span class="text-red-500">*</span></label>
+                    <select id="addAdminTambon" required class="input-field"></select>
+                </div>
+                <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded">บันทึกแอดมินใหม่</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Dashboard Maintenance Screen -->
+    <div id="dashboardMaintenance" class="hidden flex-col items-center justify-center p-12 text-center bg-white rounded-xl shadow-lg mt-8">
+        <i class="fas fa-tools text-6xl text-orange-500 mb-4 animate-bounce"></i>
+        <h2 class="text-2xl font-bold text-gray-800 mb-2">ปิดปรับปรุงระบบชั่วคราว</h2>
+        <p class="text-gray-600">ขณะนี้แอดมินกำลังทำการตรวจสอบและปรับปรุงฐานข้อมูล<br>โปรดกลับมาตรวจสอบข้อมูลสรุปผลงานอีกครั้งในภายหลัง ขออภัยในความไม่สะดวกครับ</p>
+    </div>
+
+    <header class="green-gradient text-white shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-white p-2 rounded-full text-green-700 shadow-md">
+                    <i class="fas fa-users-cog text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg md:text-xl font-bold leading-tight drop-shadow-sm">ระบบรายงาน กม.พึ่งได้</h1>
+                    <p class="text-green-100 text-xs font-light tracking-wide">อำเภอบ้านนาสาร จังหวัดสุราษฎร์ธานี</p>
+                </div>
+            </div>
+            <button type="button" id="btnLogout" onclick="logout()" class="hidden bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-1 rounded shadow-md transition-all">ออกจากระบบ</button>
+        </div>
+        <nav class="bg-white shadow-md w-full overflow-x-auto scrollbar-hide">
+            <div class="container mx-auto flex min-w-max md:min-w-0 text-sm">
+                <button type="button" onclick="switchTab('form-kormor')" id="tab-form-kormor" class="flex-1 py-3 px-2 tab-btn tab-active whitespace-nowrap"><i class="fas fa-edit mr-1"></i>บันทึกผลงาน</button>
+                <button type="button" onclick="switchTab('form-pranee')" id="tab-form-pranee" class="flex-1 py-3 px-2 tab-btn whitespace-nowrap"><i class="fas fa-handshake mr-1"></i>บันทึกไกล่เกลี่ย</button>
+                <button type="button" onclick="switchTab('dash-kormor')" id="tab-dash-kormor" class="flex-1 py-3 px-2 tab-btn whitespace-nowrap"><i class="fas fa-chart-pie mr-1"></i>สรุปผลงาน</button>
+                <button type="button" onclick="switchTab('dash-pranee')" id="tab-dash-pranee" class="flex-1 py-3 px-2 tab-btn whitespace-nowrap"><i class="fas fa-chart-bar mr-1"></i>สรุปไกล่เกลี่ย</button>
+                <button type="button" onclick="switchTab('admin')" id="tab-admin" class="flex-1 py-3 px-2 tab-btn whitespace-nowrap"><i class="fas fa-cogs mr-1"></i>ผู้ดูแลระบบ</button>
+            </div>
+        </nav>
+    </header>
+
+    <main class="container mx-auto px-4 py-6 max-w-7xl min-h-screen pb-20">
+
+        <!-- ================= TAB 1: บันทึกรายงานการปฏิบัติหน้าที่ ================= -->
+        <section id="section-form-kormor" class="fade-in">
+            <div class="card p-6 md:p-8 border-t-4 border-green-500 max-w-5xl mx-auto">
+                <div class="mb-6 pb-4 border-b border-gray-100">
+                    <h2 class="text-xl font-bold text-green-800"><i class="fas fa-file-alt mr-2"></i>บันทึกรายงานการปฏิบัติหน้าที่</h2>
+                </div>
+                <form id="formKormor" onsubmit="handleKormorSubmit(event)" class="space-y-6">
+                    <div class="bg-green-50 p-4 rounded-lg border border-green-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">ตำบล <span class="text-red-500">*</span></label>
+                            <select name="tambon" id="kormor_tambon" onchange="updateMoo('kormor')" required class="input-field bg-white"><option value="">-- เลือกตำบล --</option></select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">หมู่บ้าน <span class="text-red-500">*</span></label>
+                            <select name="moo" id="kormor_moo" required class="input-field input-disabled" disabled><option value="">-- เลือกหมู่บ้าน --</option></select>
+                        </div>
+                        <div class="md:col-span-2">
+                             <label class="block text-sm font-medium mb-2">ประเภทหมู่บ้าน <span class="text-red-500">*</span></label>
+                             <div class="flex gap-4">
+                                 <label class="flex items-center space-x-2"><input type="radio" name="village_type" value="หมู่บ้าน กม." required class="accent-green-600"><span>หมู่บ้าน กม.</span></label>
+                                 <label class="flex items-center space-x-2"><input type="radio" name="village_type" value="หมู่บ้าน อพป." class="accent-green-600"><span>หมู่บ้าน อพป.</span></label>
+                             </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">ด้านการปฏิบัติงานหลัก <span class="text-red-500">*</span></label>
+                        <select id="mainDomain" onchange="updateSubDomain()" class="input-field mb-4"><option value="">-- เลือกด้านงานหลัก --</option></select>
+                        <label class="block text-sm font-medium mb-1">หัวข้อย่อย <span class="text-red-500">*</span></label>
+                        <select name="domain" id="subDomain" required class="input-field input-disabled text-sm mb-4" disabled><option value="">-- เลือกหัวข้อย่อย --</option></select>
+                        <label class="block text-sm font-medium mb-1">ชื่อกิจกรรม <span class="text-red-500">*</span></label>
+                        <input type="text" name="activity_name" required class="input-field mb-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div><label class="block text-sm font-medium mb-1">วันที่ดำเนินการ <span class="text-red-500">*</span></label><input type="date" id="k_report_date" name="report_date" required class="input-field"></div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">สถานะ <span class="text-red-500">*</span></label>
+                                <select name="status" required class="input-field"><option value="ดำเนินการแล้วเสร็จ">ดำเนินการแล้วเสร็จ</option><option value="ยังดำเนินการไม่แล้วเสร็จ">ยังดำเนินการไม่แล้วเสร็จ</option></select>
+                            </div>
+                        </div>
+                        <label class="block text-sm font-medium mb-1">รายละเอียดการปฏิบัติหน้าที่ <span class="text-red-500">*</span></label>
+                        <textarea name="details" rows="3" required class="input-field mb-4"></textarea>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                             <div><label class="block text-sm font-medium mb-1">สถานที่ <span class="text-red-500">*</span></label><input type="text" name="location" required class="input-field"></div>
+                             <div><label class="block text-sm font-medium mb-1">จำนวนคน <span class="text-red-500">*</span></label><input type="number" name="people_count" required class="input-field"></div>
+                             <div><label class="block text-sm font-medium mb-1">งบประมาณ บาท (ถ้ามี)</label><input type="number" name="budget" placeholder="0" class="input-field"></div>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <label class="block text-sm font-medium mb-2">ภาพกิจกรรม (บังคับ 2 ภาพ) <span class="text-red-500">*</span></label>
+                        <div class="grid grid-cols-2 gap-4">
+                            <input type="file" id="k_img1" accept="image/*" class="text-sm" required>
+                            <input type="file" id="k_img2" accept="image/*" class="text-sm" required>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">คณะทำงาน <span class="text-red-500">*</span></label>
+                            <select name="responsible_team" required class="input-field">
+                                <option value="">-- เลือก --</option>
+                                <option value="คณะทำงานด้านอำนวยการ (กม.)">คณะทำงานด้านอำนวยการ (กม.)</option>
+                                <option value="คณะทำงานด้านการปกครองฯ (กม.)">ด้านการปกครองฯ</option>
+                                <option value="คณะทำงานด้านแผนพัฒนาหมู่บ้าน (กม.)">ด้านแผนพัฒนาหมู่บ้าน</option>
+                                <option value="คณะทำงานด้านส่งเสริมเศรษฐกิจ (กม.)">ด้านส่งเสริมเศรษฐกิจ</option>
+                                <option value="คณะทำงานด้านสังคม สิ่งแวดล้อมฯ (กม.)">ด้านสังคม สิ่งแวดล้อมฯ</option>
+                                <option value="คณะทำงานด้านการศึกษา ศาสนาฯ (กม.)">ด้านการศึกษา ศาสนาฯ</option>
+                                <option value="อื่นๆ">อื่นๆ</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">ตำแหน่งผู้รายงาน <span class="text-red-500">*</span></label>
+                            <select name="reporter_pos" required class="input-field">
+                                <option value="">-- เลือก --</option>
+                                <option value="กำนัน">กำนัน</option><option value="ผู้ใหญ่บ้าน">ผู้ใหญ่บ้าน</option><option value="แพทย์ประจำตำบล">แพทย์ประจำตำบล</option>
+                                <option value="สารวัตรกำนัน">สารวัตรกำนัน</option><option value="ผู้ช่วยผู้ใหญ่บ้านฝ่ายปกครอง">ผู้ช่วยฯ ฝ่ายปกครอง</option>
+                                <option value="ผู้ช่วยผู้ใหญ่บ้านฝ่ายรักษาความสงบ">ผู้ช่วยฯ ฝ่ายรักษาความสงบ</option><option value="กรรมการหมู่บ้าน (กม.)">กรรมการหมู่บ้าน (กม.)</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-2"><label class="block text-sm font-medium mb-1">ชื่อ-สกุล ผู้รายงาน <span class="text-red-500">*</span></label><input type="text" name="reporter_name" required class="input-field"></div>
+                        <div class="md:col-span-2"><label class="block text-sm font-medium mb-1">หมายเหตุ (ถ้ามี)</label><input type="text" name="remark" placeholder="หมายเหตุ (ถ้ามี)" class="input-field"></div>
+                    </div>
+                    <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl shadow-lg transition transform hover:-translate-y-1">ส่งรายงานผลงาน</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- ================= TAB 2: บันทึกรายงานการประนีประนอม ================= -->
+        <section id="section-form-pranee" class="hidden fade-in">
+            <div class="card p-6 md:p-8 border-t-4 border-blue-500 max-w-5xl mx-auto">
+                <div class="mb-6 pb-4 border-b border-gray-100 flex justify-between items-center flex-wrap gap-4">
+                    <div><h2 class="text-xl font-bold text-blue-800"><i class="fas fa-handshake mr-2"></i>บันทึกรายงานการไกล่เกลี่ย</h2></div>
+                    <a href="https://drive.google.com/file/d/18VNNKXOl0dKNF484Pz8v71_m_F1A6ekT/view?usp=drivesdk" target="_blank" class="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg text-sm hover:bg-blue-200 transition shadow-sm"><i class="fas fa-download mr-1"></i> ดาวน์โหลดแบบฟอร์มการไกล่เกลี่ย</a>
+                </div>
+                <form id="formPranee" onsubmit="handlePraneeSubmit(event)" class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">ปีงบประมาณ <span class="text-red-500">*</span></label>
+                            <select name="fiscal_year" required class="input-field"><option value="2569">2569</option><option value="2570">2570</option><option value="2571">2571</option></select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">จำนวน กม. ที่ไกล่เกลี่ย <span class="text-red-500">*</span></label>
+                            <select name="committee_count" required class="input-field"><option value="2 คน">2 คน</option><option value="3 คน">3 คน</option><option value="4 คน">4 คน</option><option value="5 คน">5 คน</option><option value="อื่นๆ">อื่นๆ</option></select>
+                        </div>
+                         <div class="md:col-span-2">
+                             <label class="block text-sm font-medium mb-1">ส่วนราชการอื่น ๆ (ถ้ามี)</label>
+                             <div class="flex flex-wrap gap-3 text-sm">
+                                 <label><input type="checkbox" name="other_agency" value="นายอำเภอ" class="mr-1">นายอำเภอ</label>
+                                 <label><input type="checkbox" name="other_agency" value="ปลัดอำเภอ" class="mr-1">ปลัดอำเภอ</label>
+                                 <label><input type="checkbox" name="other_agency" value="พนักงานสอบสวน" class="mr-1">พนักงานสอบสวน</label>
+                                 <label><input type="checkbox" name="other_agency" value="พนักงานอัยการ" class="mr-1">พนักงานอัยการ</label>
+                                 <label><input type="checkbox" name="other_agency" value="อื่นๆ" class="mr-1">อื่นๆ</label>
+                             </div>
+                        </div>
+                    </div>
+                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">พื้นที่พิพาท (ตำบล) <span class="text-red-500">*</span></label>
+                            <select name="tambon" id="pranee_tambon" onchange="updateMoo('pranee')" required class="input-field bg-white"><option value="">-- เลือกตำบล --</option></select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">พื้นที่พิพาท (หมู่บ้าน) <span class="text-red-500">*</span></label>
+                            <select name="moo" id="pranee_moo" required class="input-field input-disabled" disabled><option value="">-- เลือกหมู่บ้าน --</option></select>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium mb-1">สถานที่ประนีประนอม <span class="text-red-500">*</span></label>
+                            <input type="text" name="location" required class="input-field bg-white" placeholder="ระบุสถานที่">
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <div><label class="block text-sm font-medium mb-1">วันที่ไกล่เกลี่ย <span class="text-red-500">*</span></label><input type="date" id="p_mediation_date" name="mediation_date" required class="input-field"></div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">เงื่อนไขการประนีประนอม <span class="text-red-500">*</span></label>
+                             <select name="condition" required class="input-field">
+                                <option value="คู่กรณีมีภูมิลำเนาในหมู่บ้าน">คู่กรณีมีภูมิลำเนาในหมู่บ้าน</option>
+                                <option value="เกิดเหตุในหมู่บ้าน">เกิดเหตุในหมู่บ้าน</option>
+                            </select>
+                        </div>
+                        <div><label class="block text-sm font-medium mb-1">เรื่องที่พิพาท <span class="text-red-500">*</span></label><input type="text" name="subject" required class="input-field"></div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div><label class="block text-sm font-medium mb-1">ประเภทคดี <span class="text-red-500">*</span></label><select name="case_type" required class="input-field"><option value="คดีแพ่ง">คดีแพ่ง</option><option value="คดีอาญา">คดีอาญา</option></select></div>
+                            <div><label class="block text-sm font-medium mb-1">ทุนทรัพย์ (บาท)</label><input type="number" name="capital" class="input-field" placeholder="0"></div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">ดำเนินการแล้วเสร็จ (เดือน) <span class="text-red-500">*</span></label>
+                            <select name="finish_month" required class="input-field">
+                                <option value="ตุลาคม">ตุลาคม</option> <option value="พฤศจิกายน">พฤศจิกายน</option> <option value="ธันวาคม">ธันวาคม</option>
+                                <option value="มกราคม">มกราคม</option> <option value="กุมภาพันธ์">กุมภาพันธ์</option> <option value="มีนาคม">มีนาคม</option>
+                                <option value="เมษายน">เมษายน</option> <option value="พฤษภาคม">พฤษภาคม</option> <option value="มิถุนายน">มิถุนายน</option>
+                                <option value="กรกฎาคม">กรกฎาคม</option> <option value="สิงหาคม">สิงหาคม</option> <option value="กันยายน">กันยายน</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                        <label class="block text-sm font-medium mb-2">ผลการประนีประนอม <span class="text-red-500">*</span></label>
+                        <div class="space-y-2">
+                            <label class="flex items-start"><input type="radio" name="result" value="ตกลงกันได้-ไม่ทำสัญญา" onchange="togglePraneeUploads()" required class="mt-1 mr-2">ตกลงกันได้ (ไม่ทำสัญญา)</label>
+                            <label class="flex items-start"><input type="radio" name="result" value="ตกลงกันได้-ทำสัญญา" onchange="togglePraneeUploads()" class="mt-1 mr-2">ตกลงกันได้ (ทำสัญญาประนีประนอมยอมความ)</label>
+                            <label class="flex items-start"><input type="radio" name="result" value="ตกลงกันไม่ได้-อำเภอ" onchange="togglePraneeUploads()" class="mt-1 mr-2">ตกลงกันไม่ได้ (แจ้งไปอำเภอ)</label>
+                            <label class="flex items-start"><input type="radio" name="result" value="ตกลงกันไม่ได้-ยุติธรรม" onchange="togglePraneeUploads()" class="mt-1 mr-2">ตกลงกันไม่ได้ (ไปตามกระบวนการยุติธรรม)</label>
+                        </div>
+                    </div>
+                    <div class="p-4 border rounded-lg bg-white" id="pranee_upload_section">
+                        <label class="block text-sm font-bold mb-2">แนบเอกสารการประนีประนอม (PDF/รูปภาพ) <span class="text-red-500">*</span></label>
+                        <div class="mb-3">
+                            <label class="block text-xs mb-1">1. แบบบันทึกยินยอมให้ กม.ประนีประนอมข้อพิพาท <span class="text-red-500">*</span></label>
+                            <input type="file" id="p_file1" accept="image/*,.pdf" required class="text-sm">
+                        </div>
+                        <div id="p_file2_div" class="hidden mt-3 pt-3 border-t">
+                            <label class="block text-xs mb-1">2. สัญญาประนีประนอมยอมความแพ่ง/อาญา <span class="text-red-500">*</span></label>
+                            <input type="file" id="p_file2" accept="image/*,.pdf" class="text-sm">
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg transition transform hover:-translate-y-1">ส่งรายงานการไกล่เกลี่ย</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- ================= TAB 3: Dashboard Kormor ================= -->
+        <section id="section-dash-kormor" class="hidden fade-in">
+             <div class="mb-4 flex flex-col md:flex-row justify-between md:items-center gap-4">
+                <div class="flex flex-col md:flex-row md:items-center gap-2">
+                    <h2 class="text-xl font-bold text-green-800">สรุปผลการปฏิบัติหน้าที่</h2>
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="refreshDashboardKormor()" class="bg-gray-100 hover:bg-green-100 text-gray-600 hover:text-green-700 px-2 py-1 rounded shadow-sm text-xs transition" title="รีเฟรชข้อมูลล่าสุดจากระบบ"><i class="fas fa-sync-alt"></i> รีเฟรช</button>
+                        <span id="k_last_update" class="text-xs text-gray-500 font-medium"></span>
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <select id="k_filter_month" onchange="loadDashboardKormor()" class="text-sm border rounded px-2 py-1 shadow-sm font-medium"></select>
+                    <select id="k_filter_tambon" onchange="updateDashMooFilter('k'); loadDashboardKormor();" class="text-sm border rounded px-2 py-1 shadow-sm"><option value="ALL">ทุกตำบล</option></select>
+                    <select id="k_filter_moo" onchange="loadDashboardKormor()" class="text-sm border rounded px-2 py-1 disabled:bg-gray-100 shadow-sm" disabled><option value="ALL">ทุกหมู่บ้าน</option></select>
+                </div>
+            </div>
+            
+            <div id="kormorDashContent">
+                <!-- KPI -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="card p-4 border-l-4 border-green-500"><p class="text-xs text-gray-500">โครงการรวม</p><h3 id="k_total" class="text-xl md:text-2xl font-bold">-</h3></div>
+                    <div class="card p-4 border-l-4 border-yellow-500"><p class="text-xs text-gray-500">งบประมาณ (บาท)</p><h3 id="k_budget" class="text-xl md:text-2xl font-bold">-</h3></div>
+                    <div class="card p-4 border-l-4 border-blue-500"><p class="text-xs text-gray-500">เสร็จสิ้น</p><h3 id="k_done" class="text-xl md:text-2xl font-bold">-</h3></div>
+                    <div class="card p-4 border-l-4 border-orange-500"><p class="text-xs text-gray-500">ผู้เข้าร่วม (คน)</p><h3 id="k_people" class="text-xl md:text-2xl font-bold">-</h3></div>
+                </div>
+
+                <!-- Reporter Leaderboard in Dashboard -->
+                <h3 class="text-lg font-bold text-blue-800 mb-2 mt-8"><i class="fas fa-award mr-2"></i>สถิติผู้รายงาน (Leaderboard)</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-200 h-64 overflow-y-auto">
+                        <h3 class="text-sm font-bold mb-2">🏆 5 อันดับผู้รายงานสูงสุด</h3>
+                        <ul id="k_rep_top5" class="text-sm space-y-2"></ul>
+                    </div>
+                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-200 h-64 overflow-y-auto">
+                        <h3 class="text-sm font-bold mb-2">📈 ผู้รายงานถึงครึ่งหนึ่งของยอดสูงสุด</h3>
+                        <ul id="k_rep_more_half" class="text-sm space-y-2"></ul>
+                    </div>
+                </div>
+
+                <h3 class="text-lg font-bold text-green-800 mb-2"><i class="fas fa-chart-bar mr-2"></i>สถิติหมู่บ้านและตำบล</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <div class="card p-4 border-t-4 border-green-500 h-64 overflow-y-auto"><h3 class="text-xs font-bold mb-2">🏆 Top 5 รายงานสูงสุด</h3><ul id="k_top5" class="text-sm space-y-2"></ul></div>
+                    <div class="card p-4 border-t-4 border-blue-500 h-64 overflow-y-auto"><h3 class="text-xs font-bold mb-2">📈 รายงานถึงครึ่งของหมู่บ้านสูงสุด</h3><ul id="k_more_half" class="text-sm space-y-2"></ul></div>
+                    <div class="card p-4 border-t-4 border-orange-500 h-64 overflow-y-auto"><h3 class="text-xs font-bold mb-2">📉 รายงานน้อยกว่าครึ่งของหมู่บ้านสูงสุด</h3><ul id="k_less_half" class="text-sm space-y-2"></ul></div>
+                    <div class="card p-4 border-t-4 border-red-600 h-64 overflow-y-auto"><h3 class="text-xs font-bold mb-2 text-red-600">⚠️ ไม่มีการรายงานเลย</h3><ul id="k_zero" class="text-sm space-y-2 text-red-600"></ul></div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <div class="card p-4 overflow-auto h-80"><h3 class="text-sm font-bold text-gray-600 mb-2">สถิติตำบล (จำนวนกิจกรรม)</h3><table class="min-w-full text-sm text-left divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th class="p-3">ตำบล</th><th class="p-3 text-right">จำนวน</th></tr></thead><tbody id="k_tambon_stats" class="bg-white"></tbody></table></div>
+                    <div class="card p-4 h-80"><h3 class="text-sm font-bold text-gray-600 mb-2">สัดส่วนภารกิจ</h3><canvas id="chartKormorDomain"></canvas></div>
+                </div>
+                <div class="card overflow-hidden">
+                    <h3 class="p-4 font-bold text-green-800 bg-green-50 border-b">รายการกิจกรรม (ล่าสุดไว้บน)</h3>
+                    <div class="overflow-x-auto w-full"><table class="min-w-full text-left text-sm"><thead class="bg-gray-100"><tr><th class="p-3">วันที่</th><th class="p-3">พื้นที่</th><th class="p-3">กิจกรรม</th><th class="p-3 text-center">สถานะ</th><th class="p-3 text-center">ภาพกิจกรรม</th></tr></thead><tbody id="tableKormor" class="bg-white"></tbody></table></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB 4: Dashboard Pranee ================= -->
+        <section id="section-dash-pranee" class="hidden fade-in">
+            <div class="mb-4 flex flex-col md:flex-row justify-between md:items-center gap-4">
+                <div class="flex flex-col md:flex-row md:items-center gap-2">
+                    <h2 class="text-xl font-bold text-blue-800">สรุปผลการไกล่เกลี่ย</h2>
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="refreshDashboardPranee()" class="bg-gray-100 hover:bg-blue-100 text-gray-600 hover:text-blue-700 px-2 py-1 rounded shadow-sm text-xs transition" title="รีเฟรชข้อมูลล่าสุดจากระบบ"><i class="fas fa-sync-alt"></i> รีเฟรช</button>
+                        <span id="p_last_update" class="text-xs text-gray-500 font-medium"></span>
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <select id="p_filter_month" onchange="loadDashboardPranee()" class="text-sm border rounded px-2 py-1 shadow-sm font-medium"></select>
+                    <select id="p_filter_tambon" onchange="updateDashMooFilter('p'); loadDashboardPranee();" class="text-sm border rounded px-2 py-1 shadow-sm"><option value="ALL">ทุกตำบล</option></select>
+                    <select id="p_filter_moo" onchange="loadDashboardPranee()" class="text-sm border rounded px-2 py-1 disabled:bg-gray-100 shadow-sm" disabled><option value="ALL">ทุกหมู่บ้าน</option></select>
+                </div>
+            </div>
+            <div id="praneeDashContent">
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                    <div class="card p-4 border-l-4 border-blue-600"><p class="text-xs text-gray-500">เรื่องร้องเรียนรวม</p><h3 id="p_total" class="text-2xl font-bold">-</h3></div>
+                    <div class="card p-4 border-l-4 border-green-600"><p class="text-xs text-gray-500">ตกลงกันได้</p><h3 id="p_success" class="text-2xl font-bold">-</h3></div>
+                    <div class="card p-4 border-l-4 border-red-500"><p class="text-xs text-gray-500">ทุนทรัพย์ (บาท)</p><h3 id="p_capital" class="text-2xl font-bold">-</h3></div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <div class="card p-4 border-t-4 border-blue-500 h-64 overflow-y-auto"><h3 class="text-xs font-bold mb-2">🏆 Top 5 รับเรื่องสูงสุด</h3><ul id="p_top5" class="text-sm space-y-2"></ul></div>
+                    <div class="card p-4 border-t-4 border-teal-500 h-64 overflow-y-auto"><h3 class="text-xs font-bold mb-2">📈 รับเรื่องถึงครึ่งของหมู่บ้านสูงสุด</h3><ul id="p_more_half" class="text-sm space-y-2"></ul></div>
+                    <div class="card p-4 border-t-4 border-orange-500 h-64 overflow-y-auto"><h3 class="text-xs font-bold mb-2">📉 รับเรื่องน้อยกว่าครึ่งของหมู่บ้านสูงสุด</h3><ul id="p_less_half" class="text-sm space-y-2"></ul></div>
+                    <div class="card p-4 border-t-4 border-red-600 h-64 overflow-y-auto"><h3 class="text-xs font-bold mb-2 text-red-600">⚠️ ไม่มีการไกล่เกลี่ยเลย</h3><ul id="p_zero" class="text-sm space-y-2 text-red-600"></ul></div>
+                </div>
+                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <div class="card p-4 overflow-auto h-80"><h3 class="text-sm font-bold text-gray-600 mb-2">สถิติตำบล (จำนวนเรื่อง)</h3><table class="min-w-full text-sm text-left divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th class="p-3">ตำบล</th><th class="p-3 text-right">จำนวน</th></tr></thead><tbody id="p_tambon_stats" class="bg-white"></tbody></table></div>
+                    <div class="card p-4 h-80"><h3 class="text-sm font-bold text-gray-600 mb-2">ผลการเจรจา</h3><canvas id="chartPraneeResult"></canvas></div>
+                </div>
+                <div class="card overflow-hidden">
+                     <h3 class="p-4 font-bold text-blue-800 bg-blue-50 border-b">รายการไกล่เกลี่ย (ล่าสุดไว้บน)</h3>
+                     <div class="overflow-x-auto w-full"><table class="min-w-full text-left text-sm"><thead class="bg-gray-100"><tr><th class="p-3">วันที่</th><th class="p-3">พื้นที่</th><th class="p-3">เรื่อง</th><th class="p-3 text-center">ผล</th><th class="p-3 text-center">เอกสาร</th></tr></thead><tbody id="tablePranee" class="bg-white"></tbody></table></div>
+                 </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB 5: Admin ================= -->
+        <section id="section-admin" class="hidden fade-in">
+            <div id="adminLogin" class="max-w-md mx-auto card p-8">
+                <h2 class="text-2xl font-bold text-center mb-6"><i class="fas fa-lock text-gray-400 mr-2"></i>เข้าสู่ระบบผู้ดูแล</h2>
+                <form onsubmit="handleLogin(event)" class="space-y-4">
+                    <div><label class="block text-sm">Username</label><input type="text" id="loginUser" required class="input-field"></div>
+                    <div><label class="block text-sm">Password</label><input type="password" id="loginPass" required class="input-field"></div>
+                    <button type="submit" class="w-full bg-gray-800 text-white py-2 rounded">เข้าสู่ระบบ</button>
+                </form>
+            </div>
+
+            <div id="adminDash" class="hidden">
+                <div class="mb-4 flex justify-between items-end flex-wrap gap-4">
+                    <div><h2 class="text-xl font-bold">แผงควบคุมผู้ดูแลระบบ</h2><p class="text-sm text-gray-500" id="adminInfo">สิทธิ์: ...</p></div>
+                    
+                    <!-- Dashboard Toggle (Master Admin Only) -->
+                    <div id="dashToggleContainer" class="hidden bg-white p-3 rounded-lg border shadow-sm flex items-center gap-3">
+                        <span class="text-sm font-bold text-gray-700">สถานะการแสดงผล Dashboard</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="dashToggle" class="sr-only peer" onchange="toggleDashboardStatus()">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                        </label>
+                        <span id="dashToggleText" class="text-sm font-bold text-green-600">เปิดใช้งานอยู่</span>
+                    </div>
+                </div>
+
+                <!-- Admin Sub-Navigation -->
+                <div class="flex flex-wrap gap-2 mb-6 bg-white p-2 rounded-lg shadow-sm border">
+                    <button type="button" onclick="switchAdminTab('manageData')" id="atab-manageData" class="admin-subtab-btn admin-subtab-active text-sm">ตรวจสอบ/ลบข้อมูล</button>
+                    <button type="button" onclick="switchAdminTab('typoScan')" id="atab-typoScan" class="admin-subtab-btn text-sm text-yellow-600 border border-transparent hover:border-yellow-200">สแกนหาคำผิด</button>
+                    <button type="button" onclick="switchAdminTab('deleteLogs')" id="atab-deleteLogs" class="admin-subtab-btn text-sm text-orange-600 border border-transparent hover:border-orange-200">ถังขยะ & สถิติการลบ</button>
+                    
+                    <!-- Restricted Menus -->
+                    <button type="button" onclick="switchAdminTab('reporterStats')" id="atab-reporterStats" class="admin-subtab-btn text-sm text-blue-600 border border-transparent hover:border-blue-200">สถิติผู้รายงาน</button>
+                    <button type="button" onclick="switchAdminTab('manageBlock')" id="atab-manageBlock" class="admin-subtab-btn text-sm text-red-600 border border-transparent hover:border-red-200">จัดการการบล็อก</button>
+                    <button type="button" onclick="switchAdminTab('exportExcel')" id="atab-exportExcel" class="admin-subtab-btn text-sm text-purple-600 border border-transparent hover:border-purple-200">ส่งออก Excel</button>
+                    <button type="button" onclick="switchAdminTab('aiSweep')" id="atab-aiSweep" class="admin-subtab-btn text-sm text-indigo-600 border border-transparent hover:border-indigo-200 hidden"><i class="fas fa-broom"></i> กวาดลบข้อมูล (AI)</button>
+                    <button type="button" onclick="switchAdminTab('manageAdmins')" id="atab-manageAdmins" class="admin-subtab-btn text-sm text-gray-800 border border-transparent hover:border-gray-300 hidden"><i class="fas fa-users-cog"></i> จัดการสิทธิ์แอดมิน</button>
+                </div>
+
+                <!-- Sub-Tab 1: Manage Data -->
+                <div id="admin-sec-manageData" class="card p-6">
+                    <div class="flex justify-between flex-wrap gap-4 items-center mb-4 border-b pb-4">
+                        <h3 class="font-bold text-gray-800"><i class="fas fa-tasks mr-2"></i>ตรวจสอบ แก้ไข และลบข้อมูล</h3>
+                        <div class="flex items-center gap-3">
+                            <button type="button" onclick="scanDuplicates()" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 px-4 py-2 rounded-lg font-bold shadow-sm transition">
+                                <i class="fas fa-search-minus mr-2"></i>สแกนหาข้อมูลซ้ำซ้อน (แมนนวล)
+                            </button>
+                            <button type="button" onclick="resetIgnoredDuplicates()" class="text-xs text-gray-500 hover:text-gray-800 underline transition" title="ล้างค่ารายการที่เคยตั้งว่า 'ยืนยันว่าไม่ซ้ำ' ทั้งหมด">รีเซ็ตการละเว้น</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-2 mb-4 bg-gray-50 p-3 rounded border">
+                        <input type="text" id="admin_search" onkeyup="filterAdminTable()" placeholder="🔍 พิมพ์เพื่อค้นหากิจกรรม หรือ รายละเอียด..." class="input-field py-1 text-sm flex-1 min-w-[200px]">
+                        <select id="admin_type" onchange="loadAdminData()" class="input-field py-1 text-sm w-auto"><option value="kormor">ตาราง: ผลงาน</option><option value="pranee">ตาราง: ไกล่เกลี่ย</option></select>
+                        <select id="admin_month" onchange="loadAdminData()" class="input-field py-1 text-sm w-auto"><option value="ALL">ทุกเดือน</option></select>
+                        <select id="admin_tambon" onchange="updateAdminMooFilter(); loadAdminData();" class="input-field py-1 text-sm w-auto"><option value="ALL">ทุกตำบล</option></select>
+                        <select id="admin_moo" onchange="loadAdminData()" class="input-field py-1 text-sm w-auto disabled:bg-gray-100" disabled><option value="ALL">ทุกหมู่บ้าน</option></select>
+                    </div>
+                    <div class="table-scroll">
+                         <table class="w-full text-left text-sm" id="mainAdminTable">
+                             <thead class="bg-gray-100">
+                                 <tr>
+                                     <th class="p-3 w-1/6">วันที่ดำเนินการ<br><span class="text-xs text-gray-500 font-normal">วันที่ส่งเข้าสู่ระบบ</span></th>
+                                     <th class="p-3 w-1/5">พื้นที่</th>
+                                     <th class="p-3 w-2/5">เรื่อง/กิจกรรม</th>
+                                     <th class="p-3 text-center w-1/5">จัดการ</th>
+                                 </tr>
+                             </thead>
+                             <tbody id="tableAdminData" class="divide-y divide-gray-100"></tbody>
+                         </table>
+                    </div>
+                </div>
+
+                <!-- Sub-Tab 1.2: Typo Scan -->
+                <div id="admin-sec-typoScan" class="hidden card p-6 border-t-4 border-yellow-500">
+                    <div class="flex justify-between flex-wrap gap-4 items-center mb-4 border-b pb-4">
+                        <h3 class="font-bold text-yellow-800"><i class="fas fa-spell-check mr-2"></i>ระบบสแกนหากิจกรรมที่อาจพิมพ์ผิด (สะกดผิด/ไวยากรณ์)</h3>
+                    </div>
+                    <div class="flex flex-wrap gap-2 mb-4 bg-yellow-50 p-3 rounded border border-yellow-200">
+                        <select id="typo_type" class="input-field py-1 text-sm w-auto"><option value="kormor">ตาราง: ผลงาน</option><option value="pranee">ตาราง: ไกล่เกลี่ย</option></select>
+                        <select id="typo_month" class="input-field py-1 text-sm w-auto"><option value="ALL">ทุกเดือน</option></select>
+                        <select id="typo_tambon" onchange="updateMooList('typo_tambon', 'typo_moo', true)" class="input-field py-1 text-sm w-auto"><option value="ALL">ทุกตำบล</option></select>
+                        <select id="typo_moo" class="input-field py-1 text-sm w-auto disabled:bg-gray-100" disabled><option value="ALL">ทุกหมู่บ้าน</option></select>
+                        <button type="button" onclick="runTypoScan()" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-1 rounded text-sm font-bold shadow"><i class="fas fa-search mr-1"></i> เริ่มสแกน</button>
+                    </div>
+                    <div class="table-scroll">
+                         <table class="w-full text-left text-sm">
+                             <thead class="bg-gray-100">
+                                 <tr>
+                                     <th class="p-3 w-1/6">วันที่ดำเนินการ</th>
+                                     <th class="p-3 w-1/5">พื้นที่</th>
+                                     <th class="p-3 w-2/5">เรื่อง/กิจกรรมที่พบความผิดปกติ</th>
+                                     <th class="p-3 text-center w-1/5">จัดการ</th>
+                                 </tr>
+                             </thead>
+                             <tbody id="tableTypoData" class="divide-y divide-gray-100">
+                                <tr><td colspan="4" class="p-4 text-center text-gray-500">กดปุ่ม "เริ่มสแกน" เพื่อวิเคราะห์ข้อมูล</td></tr>
+                             </tbody>
+                         </table>
+                    </div>
+                </div>
+
+                <!-- Sub-Tab 1.5: Reporter Stats -->
+                <div id="admin-sec-reporterStats" class="hidden card p-6 border-t-4 border-blue-500">
+                    <div class="flex justify-between items-center flex-wrap gap-2 mb-4">
+                        <h3 class="font-bold text-blue-800"><i class="fas fa-users mr-2"></i>สถิติผู้รายงาน (Leaderboard)</h3>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <select id="reporter_month" onchange="loadReporterStats()" class="input-field py-1 text-sm w-auto"><option value="ALL">รวมทุกรอบเดือน</option></select>
+                            <select id="reporter_scan_tambon" class="input-field py-1 text-sm w-auto"><option value="ALL">สแกนทุกตำบล</option></select>
+                            <button type="button" onclick="scanReporterTypos()" class="bg-blue-100 text-blue-700 border border-blue-300 hover:bg-blue-200 px-3 py-1.5 rounded text-sm font-bold shadow-sm transition whitespace-nowrap"><i class="fas fa-search"></i> สแกนหาชื่อซ้ำ/พิมพ์ผิด</button>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div class="bg-blue-50 p-4 rounded-lg border border-blue-200 h-64 overflow-y-auto"><h3 class="text-xs font-bold mb-2">🏆 5 อันดับผู้รายงานสูงสุด</h3><ul id="r_top5" class="text-sm space-y-2"></ul></div>
+                        <div class="bg-blue-50 p-4 rounded-lg border border-blue-200 h-64 overflow-y-auto"><h3 class="text-xs font-bold mb-2">📈 ผู้รายงานถึงครึ่งหนึ่งของยอดสูงสุด</h3><ul id="r_more_half" class="text-sm space-y-2"></ul></div>
+                        <div class="bg-blue-50 p-4 rounded-lg border border-blue-200 h-64 overflow-y-auto"><h3 class="text-xs font-bold mb-2">📉 ผู้รายงานน้อยกว่าครึ่งหนึ่งของยอดสูงสุด</h3><ul id="r_less_half" class="text-sm space-y-2"></ul></div>
+                    </div>
+
+                    <div class="overflow-x-auto table-scroll">
+                        <table class="min-w-full text-sm text-left">
+                            <thead class="bg-blue-50">
+                                <tr>
+                                    <th class="p-3 w-12 text-center">อันดับ</th>
+                                    <th class="p-3">ชื่อ-สกุล (ผู้รายงาน)</th>
+                                    <th class="p-3">ตำบล</th>
+                                    <th class="p-3">หมู่บ้าน</th>
+                                    <th class="p-3 text-center">จำนวนที่รายงาน (รายการ)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableReporterStats" class="divide-y divide-gray-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Sub-Tab 2: Block Management -->
+                <div id="admin-sec-manageBlock" class="hidden card p-6 border-t-4 border-red-500">
+                    <h3 class="font-bold text-red-800 mb-4"><i class="fas fa-ban mr-2"></i>ระบบระงับสิทธิ์การรายงาน (Block)</h3>
+                    
+                    <!-- Auto Block Config -->
+                    <div class="bg-orange-50 p-4 rounded-lg border border-orange-200 mb-6 flex flex-wrap gap-4 items-center justify-between">
+                        <div>
+                            <h4 class="font-bold text-orange-800"><i class="fas fa-robot"></i> ตั้งค่าบล็อกอัตโนมัติ (เฉพาะรอบเดือนปัจจุบัน)</h4>
+                            <p class="text-xs text-orange-700">บล็อกหมู่บ้านอัตโนมัติหากถูกแอดมินลบรายงานภายในเดือนนี้ เกินจำนวนที่กำหนด</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="text-sm font-bold">จำนวนครั้งที่ลบ/เดือน:</label>
+                            <input type="number" id="autoBlockLimit" min="0" class="input-field py-1 text-center w-20" title="ใส่ 0 เพื่อปิดระบบบล็อกอัตโนมัติ">
+                            <button type="button" onclick="saveAutoBlockSettings()" class="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded shadow text-sm font-bold">บันทึกตั้งค่า</button>
+                        </div>
+                    </div>
+
+                    <div class="bg-red-50 p-4 rounded-lg border border-red-200 mb-6">
+                        <h4 class="font-bold text-red-800 mb-2"><i class="fas fa-user-slash"></i> บล็อกแบบกำหนดเอง (Manual)</h4>
+                        <form id="formAddBlock" onsubmit="addBlockAction(event)" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                            <div><label class="text-xs font-bold text-red-700">ตำบล</label><select id="block_tambon" onchange="updateBlockMoo()" required class="input-field py-2 text-sm"><option value="">-- เลือกตำบล --</option></select></div>
+                            <div><label class="text-xs font-bold text-red-700">หมู่บ้าน</label><select id="block_moo" class="input-field py-2 text-sm" disabled><option value="ALL">แบนทั้งตำบล</option></select></div>
+                            <div>
+                                <label class="text-xs font-bold text-red-700">สาเหตุการบล็อก</label>
+                                <select id="block_reason" required class="input-field py-2 text-sm">
+                                    <option value="รายงานซ้ำ">รายงานซ้ำ</option>
+                                    <option value="รายงานไม่เข้าหลักเกณฑ์">รายงานไม่เข้าหลักเกณฑ์</option>
+                                    <option value="รอตรวจสอบข้อมูล">รอตรวจสอบข้อมูล</option>
+                                    <option value="กิจกรรมซ้ำหรือไม่เข้าหลักเกณฑ์เป็นจำนวนมาก">กิจกรรมซ้ำหรือไม่เข้าเกณฑ์จำนวนมาก</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded shadow transition">เพิ่มรายชื่อบล็อก</button>
+                        </form>
+                    </div>
+                    <h4 class="font-bold text-sm mb-2 text-gray-700">รายชื่อพื้นที่ที่ถูกบล็อกในปัจจุบัน</h4>
+                    <div class="overflow-x-auto"><table class="min-w-full text-sm text-left"><thead class="bg-gray-100"><tr><th class="p-3">วันที่บล็อก</th><th class="p-3">พื้นที่ถูกบล็อก</th><th class="p-3">เหตุผล</th><th class="p-3">ผู้บล็อก</th><th class="p-3 text-center">ปลดบล็อก</th></tr></thead><tbody id="tableBlockList"></tbody></table></div>
+                </div>
+
+                <!-- Sub-Tab 3: Deleted Logs -->
+                <div id="admin-sec-deleteLogs" class="hidden card p-6 border-t-4 border-orange-500">
+                    <div class="flex justify-between items-center flex-wrap gap-2 mb-4 border-b pb-4">
+                        <h3 class="font-bold text-orange-800"><i class="fas fa-trash-restore mr-2"></i>ถังขยะและสถิติการลบข้อมูล</h3>
+                    </div>
+                    <div class="flex flex-wrap gap-2 mb-4 bg-orange-50 p-3 rounded border border-orange-200">
+                        <input type="text" id="log_search" onkeyup="filterLogTable()" placeholder="🔍 พิมพ์ค้นหาเรื่องที่ถูกลบ..." class="input-field py-1 text-sm flex-1 min-w-[200px]">
+                        <select id="log_type" onchange="loadDeletedLogs()" class="input-field py-1 text-sm w-auto"><option value="ALL">รวมทุกตาราง</option><option value="kormor">ตาราง: ผลงาน</option><option value="pranee">ตาราง: ไกล่เกลี่ย</option></select>
+                        <select id="log_month" onchange="loadDeletedLogs()" class="input-field py-1 text-sm w-auto"><option value="ALL">รวมทุกรอบเดือน</option></select>
+                        <select id="log_tambon" onchange="updateLogMoo()" class="input-field py-1 text-sm w-auto"><option value="ALL">สถิติทุกตำบล</option></select>
+                        <select id="log_moo" onchange="loadDeletedLogs()" class="input-field py-1 text-sm w-auto disabled:bg-gray-100" disabled><option value="ALL">ทุกหมู่บ้าน</option></select>
+                    </div>
+                    
+                    <div id="delStatsContainer" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"></div>
+                    <h4 class="font-bold text-sm mb-2 text-gray-700">ประวัติการลบทั้งหมด <span id="delLogCount" class="text-red-500"></span></h4>
+                    <div class="overflow-x-auto table-scroll">
+                        <table class="min-w-full text-sm text-left">
+                            <thead class="bg-gray-100"><tr><th class="p-3 w-1/6">เวลาที่ลบ</th><th class="p-3 w-1/6">ลบจากตาราง</th><th class="p-3 w-1/5">พื้นที่</th><th class="p-3 w-1/3">เรื่องที่ถูกลบ</th><th class="p-3 w-1/6">ผู้ลบ</th></tr></thead>
+                            <tbody id="tableDeletedLogs"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Sub-Tab 4: Export -->
+                <div id="admin-sec-exportExcel" class="hidden card p-6 border-t-4 border-purple-500">
+                    <h3 class="font-bold text-purple-800 mb-4"><i class="fas fa-file-excel mr-2"></i>ส่งออกรายงานรูปแบบ Excel</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end bg-purple-50 p-6 rounded-lg border border-purple-100">
+                        <div><label class="text-xs font-bold text-purple-700">ประเภทข้อมูล</label><select id="exportType" class="input-field py-2 text-sm"><option value="kormor">ผลการปฏิบัติงาน</option><option value="pranee">ผลการไกล่เกลี่ย</option></select></div>
+                        <div><label class="text-xs font-bold text-purple-700">รอบเดือน</label><select id="exportMonth" class="input-field py-2 text-sm"><option value="ALL">ทั้งหมด (ทุกเดือน)</option></select></div>
+                        <div class="md:col-span-2"><button type="button" onclick="exportExcel()" class="bg-purple-600 hover:bg-purple-700 text-white font-bold px-6 py-2 rounded shadow w-full"><i class="fas fa-download mr-2"></i> ดาวน์โหลดและสร้างไฟล์ Excel</button></div>
+                    </div>
+                </div>
+
+                <!-- Sub-Tab 6: AI Sweep (Master Only) -->
+                <div id="admin-sec-aiSweep" class="hidden card p-6 border-t-4 border-indigo-500">
+                    <div class="flex justify-between flex-wrap gap-4 items-center mb-4 border-b pb-4">
+                        <h3 class="font-bold text-indigo-800"><i class="fas fa-magic mr-2"></i>ระบบกวาดคัดกรองและปรับปรุงข้อมูลด้วย AI (ย้อนหลัง)</h3>
+                    </div>
+                    <div class="bg-indigo-50 p-3 text-sm text-indigo-800 rounded mb-4 shadow-sm border border-indigo-100">
+                        <i class="fas fa-info-circle"></i> ระบบจะสแกนข้อมูลผลงานเก่าที่ <b>ยังไม่เคยผ่าน AI</b> (ไม่มีแท็ก [AI ตรวจผ่าน]) ในรอบเดือนและพื้นที่ที่เลือก โดยทำงานทีละแถวย้อนหลังจากล่างขึ้นบน<br>
+                        - หาก <b>ผิดกฎ:</b> จะลบทิ้งลงถังขยะให้อัตโนมัติ<br>
+                        - หาก <b>ผ่าน:</b> จะเกลาคำ จัดรูปแบบสถานที่ และ <b>แก้ไขชื่อผู้รายงานให้ตรงกับฐานข้อมูลบุคลากร</b> อัตโนมัติ
+                    </div>
+                    <div class="flex flex-wrap gap-2 mb-4 bg-white p-3 rounded border border-gray-200 shadow-sm">
+                        <select id="sweep_month" class="input-field py-1 text-sm w-auto"><option value="ALL">ทุกรอบเดือน</option></select>
+                        <select id="sweep_tambon" onchange="updateMooList('sweep_tambon', 'sweep_moo', true)" class="input-field py-1 text-sm w-auto"><option value="ALL">ทุกตำบล</option></select>
+                        <select id="sweep_moo" class="input-field py-1 text-sm w-auto disabled:bg-gray-100" disabled><option value="ALL">ทุกหมู่บ้าน</option></select>
+                        
+                        <button type="button" onclick="startAiSweep()" id="btnStartSweep" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-1 rounded text-sm font-bold shadow transition"><i class="fas fa-play mr-1"></i> เริ่มกวาดข้อมูลด้วย AI</button>
+                        <button type="button" onclick="stopAiSweep()" id="btnStopSweep" class="hidden bg-red-500 hover:bg-red-600 text-white px-5 py-1 rounded text-sm font-bold shadow transition"><i class="fas fa-stop mr-1"></i> หยุดชั่วคราว</button>
+                    </div>
+                    
+                    <div class="mb-2 text-sm font-bold text-gray-700" id="sweepProgressText">สถานะ: รอคำสั่ง...</div>
+                    <div class="w-full bg-gray-200 rounded-full h-2 mb-4 overflow-hidden">
+                      <div class="bg-indigo-600 h-2 transition-all duration-300" id="sweepProgressBar" style="width: 0%"></div>
+                    </div>
+                    
+                    <div class="table-scroll h-80 border rounded bg-gray-50">
+                         <table class="w-full text-left text-sm bg-white">
+                             <thead class="bg-gray-100 sticky top-0 z-10 shadow-sm">
+                                 <tr>
+                                     <th class="p-2 w-16 text-center border-b">แถวที่</th>
+                                     <th class="p-2 w-1/4 border-b">พื้นที่</th>
+                                     <th class="p-2 w-1/3 border-b">กิจกรรม / ผู้รายงาน</th>
+                                     <th class="p-2 text-center w-1/4 border-b">ผลลัพธ์จาก AI</th>
+                                 </tr>
+                             </thead>
+                             <tbody id="tableSweepData" class="divide-y divide-gray-100">
+                                <tr><td colspan="4" class="p-4 text-center text-gray-500">กด "เริ่มกวาดข้อมูลด้วย AI" เพื่อสแกนข้อมูลย้อนหลัง</td></tr>
+                             </tbody>
+                         </table>
+                    </div>
+                </div>
+
+                <!-- Sub-Tab 5: Manage Admins (Master Only) -->
+                <div id="admin-sec-manageAdmins" class="hidden card p-6 border-t-4 border-gray-800">
+                    <div class="flex justify-between items-center mb-4 border-b pb-4">
+                        <h3 class="font-bold text-gray-800"><i class="fas fa-users-cog mr-2"></i>จัดการสิทธิ์ผู้ดูแลระบบ (แอดมินตำบล / ผู้ช่วย)</h3>
+                        <button type="button" onclick="document.getElementById('addAdminModal').style.display='block'; toggleAddAdminTambon();" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow text-sm font-bold"><i class="fas fa-plus mr-1"></i> เพิ่มแอดมิน</button>
+                    </div>
+                    <div class="overflow-x-auto table-scroll">
+                        <table class="min-w-full text-sm text-left">
+                            <thead class="bg-gray-100"><tr><th class="p-3">Username</th><th class="p-3">ระดับสิทธิ์</th><th class="p-3">พื้นที่ดูแล (ตำบล)</th><th class="p-3 text-center">จัดการ</th></tr></thead>
+                            <tbody id="tableAdminUsers"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // สำคัญมาก: คุณต้องนำ URL ที่ได้จากการกด Deploy ระบบใหม่ล่าสุด มาวางแทนที่ตรงนี้
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyIsF9yT1VBWvdTK2VuEveQfILKe1c8nnpwWYXE0pf0CBkLDGti6FZ8BwN22gXIM4zS/exec";
+
+        const villageData = {
+            "ตำบลพรุพี": ["หมู่ที่ 1 บ้านตลาดพรุพี", "หมู่ที่ 2 บ้านทุ่งทือ", "หมู่ที่ 3 บ้านอินทนิลงาม", "หมู่ที่ 4 บ้านคลองหินแท่น", "หมู่ที่ 5 บ้านห้วยล่วง", "หมู่ที่ 6 บ้านห้วยตอ", "หมู่ที่ 7 บ้านช่องช้าง"],
+            "ตำบลทุ่งเตา": ["หมู่ที่ 1 บ้านหัวถนน", "หมู่ที่ 2 บ้านไสใหญ่", "หมู่ที่ 3 บ้านไร่เหนือ", "หมู่ที่ 4 บ้านทุ่งในไร่", "หมู่ที่ 5 บ้านคลองขนุน"],
+            "ตำบลลำพูน": ["หมู่ที่ 1 บ้านเขาน้อย", "หมู่ที่ 2 บ้านปลายน้ำ", "หมู่ที่ 3 บ้านคลองหาเหนือ", "หมู่ที่ 4 บ้านหมาก", "หมู่ที่ 5 บ้านปลายธารราชรักษา", "หมู่ที่ 6 บ้านกอบแก้ววัฒนาภิบาล", "หมู่ที่ 7 บ้านสระบัว"],
+            "ตำบลท่าชี": ["หมู่ที่ 1 บ้านนาควน", "หมู่ที่ 2 บ้านนาลึก", "หมู่ที่ 3 บ้านบนควน", "หมู่ที่ 4 บ้านนาใหม่", "หมู่ที่ 5 บ้านยูงงาม", "หมู่ที่ 6 บ้านทุ่งตำเสา"],
+            "ตำบลควนศรี": ["หมู่ที่ 1 บ้านควนมหาชัย", "หมู่ที่ 2 บ้านควนศรี", "หมู่ที่ 3 บ้านโคกเหรียง", "หมู่ที่ 4 บ้านวังใหญ่", "หมู่ที่ 5 บ้านมอเก็ต", "หมู่ที่ 6 บ้านควนเนียง", "หมู่ที่ 7 บ้านควนพรุพี", "หมู่ที่ 8 บ้านควนวัด"],
+            "ตำบลควนสุบรรณ": ["หมู่ที่ 1 บ้านต้นสะท้อน", "หมู่ที่ 2 บ้านหนองดุก", "หมู่ที่ 3 บ้านโกงเหลง", "หมู่ที่ 4 บ้านวัดต้นไทร", "หมู่ที่ 5 บ้านห้วยกรวด", "หมู่ที่ 6 บ้านหนองบ่อ", "หมู่ที่ 7 บ้านห้วยกรวดใหม่"],
+            "ตำบลคลองปราบ": ["หมู่ที่ 1 บ้านหนองปลิง", "หมู่ที่ 2 บ้านทางข้าม", "หมู่ที่ 3 บ้านคลองปราบ", "หมู่ที่ 4 บ้านหนองเภา", "หมู่ที่ 5 บ้านคีรีราษฎร์"],
+            "ตำบลน้ำพุ": ["หมู่ที่ 1 บ้านยางอุง", "หมู่ที่ 2 บ้านน้ำพุ", "หมู่ที่ 3 บ้านนายาว", "หมู่ที่ 4 บ้านดอนทราย", "หมู่ที่ 5 บ้านหนองต้อ", "หมู่ที่ 6 บ้านควนใหม่"],
+            "ตำบลทุ่งเตาใหม่": ["หมู่ที่ 1 บ้านห้วยขุนราษฎร์", "หมู่ที่ 2 บ้านห้วยตอ", "หมู่ที่ 3 บ้านควนกองเมือง", "หมู่ที่ 4 บ้านไสดง", "หมู่ที่ 5 บ้านห้วยชัน", "หมู่ที่ 6 บ้านสะพานสอง", "หมู่ที่ 7 บ้านหนองศิลป์ชัย", "หมู่ที่ 8 บ้านไสดงใน"],
+            "ตำบลเพิ่มพูนทรัพย์": ["หมู่ที่ 1 บ้านเหมืองทวด", "หมู่ที่ 2 บ้านน้ำท้น", "หมู่ที่ 3 บ้านวังศิลาดิเรกสาร", "หมู่ที่ 4 บ้านธาราวงศ์อารีย์", "หมู่ที่ 5 บ้านกอบแกบ", "หมู่ที่ 6 บ้านวังหิน"]
+        };
+
+        const domainData = {
+            "1. คณะทำงานด้านอำนวยการ": ["1.1 มีการปรับปรุงสำนักงานหรือที่ทำการหมู่บ้านให้มีสภาพเหมาะสมและพร้อมใช้งานอยู่เสมอ", "1.2 มีการจัดระบบงานธุรการและข้อมูลสารสนเทศที่จำเป็นต่อการบริหารจัดการหมู่บ้าน", "1.3 มีการจัดประชุมคณะกรรมการหมู่บ้าน (กม.) อย่างสม่ำเสมอและมีการจัดทำรายงานการประชุม", "1.4 มีการประชาสัมพันธ์ข้อมูลข่าวสารให้คนในหมู่บ้านได้รับทราบผ่านสื่อต่าง ๆ หรือสื่อออนไลน์ (Line)", "1.5 มีการดำเนินงานในด้านอื่น ๆ ที่เกี่ยวข้องกับการอำนวยการและการบริหารจัดการหมู่บ้าน"],
+            "2. คณะทำงานด้านการปกครองฯ": ["2.1 มีการส่งเสริมการปกครองระบอบประชาธิปไตยอันมีพระมหากษัตริย์ทรงเป็นประมุขในระดับพื้นที่", "2.2 มีการรณรงค์และสนับสนุนให้ประชาชนออกไปใช้สิทธิเลือกตั้งตามรัฐธรรมนูญในระดับต่าง ๆ", "2.3 มีการดำเนินกระบวนการประนีประนอมข้อพิพาทเบื้องต้นที่เกิดขึ้นภายในหมู่บ้าน", "2.4 มีการรับเรื่องราวร้องเรียนหรือร้องทุกข์ของประชาชนและประสานงานหน่วยงานที่เกี่ยวข้อง", "2.5 มีการจัดเวรยามตรวจตราเฝ้าระวังเพื่อรักษาความสงบเรียบร้อยและความปลอดภัยภายในพื้นที่", "2.6 มีการร่วมปฏิบัติงานกับชุดรักษาความปลอดภัยหมู่บ้าน (ชรบ.) หรืออาสาสมัครอื่น ๆ ในพื้นที่", "2.7 มีการเตรียมความพร้อมและการช่วยเหลือประชาชนที่ประสบภัยพิบัติต่าง ๆ ในหมู่บ้าน", "2.8 มีการรณรงค์ป้องกันและแก้ไขปัญหายาเสพติด หรือป้องกันปัญหาอาชญากรรมทางเทคโนโลยี (Scammer)", "2.9 มีการดำเนินงานในด้านอื่น ๆ ที่เกี่ยวข้องกับการปกครองและรักษาความสงบเรียบร้อย"],
+            "3. คณะทำงานด้านแผนพัฒนาฯ": ["3.1 มีการจัดทำเวทีประชาคมหมู่บ้านเพื่อรับฟังปัญหาและความต้องการที่แท้จริงของประชาชน", "3.2 มีการจัดทำและทบทวนแผนพัฒนาหมู่บ้านให้เป็นปัจจุบันและสอดคล้องกับแผนระดับต่าง ๆ", "3.3 มีการประสานงานและบูรณาการโครงการพัฒนาในหมู่บ้านร่วมกับหน่วยงานภาครัฐและเอกชน", "3.4 มีการจัดทำข้อเสนอโครงการและงบประมาณเพื่อขอรับการสนับสนุนจากหน่วยงานภายนอก", "3.5 มีการดำเนินงานในด้านอื่น ๆ ที่เกี่ยวข้องกับการจัดทำและประสานแผนพัฒนาหมู่บ้าน"],
+            "4. คณะทำงานด้านส่งเสริมเศรษฐกิจ": ["4.1 มีการขยายผลโครงการอันเนื่องมาจากพระราชดำริและหลักปรัชญาของเศรษฐกิจพอเพียง", "4.2 มีการส่งเสริมอาชีพและการเพิ่มรายได้ให้แก่ประชาชนหรือกลุ่มอาชีพต่าง ๆ ในหมู่บ้าน", "4.3 มีการจัดตั้งกองทุนกลางพัฒนาหมู่บ้าน มีการจัดหารายได้ และมีการจัดทำบัญชีรายรับ รายจ่าย ของกองทุน", "4.4 มีการส่งเสริมและบริหารจัดการด้านการท่องเที่ยวโดยชุมชนหรือการพัฒนาผลิตภัณฑ์ชุมชน", "4.5 มีการดำเนินงานในด้านอื่น ๆ ที่เกี่ยวข้องกับการส่งเสริมเศรษฐกิจและอาชีพในหมู่บ้าน"],
+            "5. คณะทำงานด้านสังคมฯ": ["5.1 มีการพัฒนาคุณภาพชีวิตของสตรี เด็ก เยาวชน ผู้สูงอายุ และผู้พิการในระดับหมู่บ้าน", "5.2 มีการจัดกิจกรรมเยี่ยมบ้านและดูแลสงเคราะห์ผู้ป่วยติดเตียงหรือผู้ยากไร้ในชุมชน", "5.3 มีการส่งเสริมสุขภาพอนามัย การป้องกันโรคระบาด และกิจกรรมด้านสาธารณสุขมูลฐาน", "5.4 มีการอนุรักษ์ทรัพยากรธรรมชาติ สิ่งแวดล้อม และการบริหารจัดการขยะในระดับครัวเรือน", "5.5 มีการดำเนินงานในด้านอื่น ๆ ที่เกี่ยวข้องกับงานด้านสังคม สิ่งแวดล้อม และสาธารณสุข"],
+            "6. คณะทำงานด้านการศึกษาฯ": ["6.1 มีการส่งเสริมการศึกษา การเรียนรู้ตลอดชีวิต และการพัฒนาศูนย์เรียนรู้ภายในชุมชน", "6.2 มีการจัดกิจกรรมทางด้านศาสนาและร่วมงานประเพณีวันสำคัญต่าง ๆ ของชาติและท้องถิ่น", "6.3 มีการอนุรักษ์สืบสานประเพณี วัฒนธรรม และภูมิปัญญาท้องถิ่นให้คงอยู่สืบไป", "6.4 มีการบูรณาการการทำงานร่วมกับผู้นำศาสนาและภาคีเครือข่ายด้านวัฒนธรรมในพื้นที่", "6.5 มีการดำเนินงานในด้านอื่น ๆ ที่เกี่ยวข้องกับการศึกษา ศาสนา และวัฒนธรรม"],
+            "7. คณะทำงานด้านอื่นๆ": ["7.1 มีการทำงานร่วมกับภาคีเครือข่ายทุกภาคส่วนเพื่อขับเคลื่อนการพัฒนาหมู่บ้าน", "7.2 มีการนำเยาวชนเข้าร่วมกิจกรรมที่เป็นประโยชน์ต่อสังคมและสร้างจิตสำนึกรักบ้านเกิด", "7.3 มีการดำเนินงานในด้านอื่น ๆ ตามที่ได้รับมอบหมายหรือเป็นความต้องการของชุมชน"]
+        };
+
+        let currentAdmin = null; let chartInstances = {}; let cachedKormorData = []; let cachedPraneeData = [];
+        let lastUpdateKormor = ""; let lastUpdatePranee = "";
+
+        window.onload = function() {
+            initDropdowns(); initMonthFilter('k_filter_month'); initMonthFilter('p_filter_month'); 
+            initMonthFilter('exportMonth'); initMonthFilter('admin_month'); initMonthFilter('reporter_month');
+            initMonthFilter('typo_month'); initMonthFilter('log_month'); initMonthFilter('sweep_month');
+            
+            const mSel = document.getElementById('mainDomain'); for(let d in domainData) mSel.add(new Option(d, d));
+            const thaiMonths = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+            const finishMonthSelect = document.querySelector('select[name="finish_month"]');
+            if(finishMonthSelect) finishMonthSelect.value = thaiMonths[new Date().getMonth()];
+            setMaxDateForInputs(); prefetchData();
+        };
+
+        function setMaxDateForInputs() {
+            try {
+                const tzOffset = (new Date()).getTimezoneOffset() * 60000;
+                const maxDate = (new Date(Date.now() - tzOffset)).toISOString().split('T')[0];
+                const kDate = document.getElementById('k_report_date'); if(kDate) kDate.setAttribute('max', maxDate);
+                const pDate = document.getElementById('p_mediation_date'); if(pDate) pDate.setAttribute('max', maxDate);
+            } catch(e) {}
+        }
+
+        function parseDateRobust(val) {
+            if (!val) return NaN; if (val instanceof Date) return val.getTime();
+            let str = String(val).trim();
+            if (/^\d{4}-\d{2}-\d{2}/.test(str)) { let parts = str.split(' ')[0].split('-'); return new Date(parts[0], parts[1]-1, parts[2]).getTime(); }
+            else if (/^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(str)) { let parts = str.split(' ')[0].split('/'); let y = Number(parts[2]); if (y < 100) y += 2000; if (y > 2500) y -= 543; return new Date(y, Number(parts[1])-1, Number(parts[0])).getTime(); }
+            let t = Date.parse(str); return !isNaN(t) ? t : NaN;
+        }
+
+        async function fetchPostJSON(action, extraPayload = {}) {
+            if(!WEB_APP_URL) throw new Error("กรุณาตั้งค่า WEB_APP_URL");
+            const response = await fetch(WEB_APP_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: action, ...extraPayload }) });
+            if (!response.ok) throw new Error(`เกิดข้อผิดพลาดในการเชื่อมต่อ`);
+            const text = await response.text();
+            try { return JSON.parse(text); } catch(err) { throw new Error("ข้อมูลตอบกลับผิดพลาด: " + text); }
+        }
+
+        async function prefetchData() {
+            try {
+                const kData = await fetchPostJSON('getDashboardKormor'); 
+                if(kData.status === 'disabled') { showDashboardMaintenance(); return; }
+                if(kData.status === 'success') {
+                    cachedKormorData = kData.all_data || [];
+                    let now = new Date();
+                    lastUpdateKormor = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth()+1).toString().padStart(2, '0')}/${now.getFullYear()+543} เวลา ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} น.`;
+                }
+                
+                const pData = await fetchPostJSON('getDashboardPranee'); 
+                if(pData.status === 'success') {
+                    cachedPraneeData = pData.all_data || [];
+                    let now = new Date();
+                    lastUpdatePranee = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth()+1).toString().padStart(2, '0')}/${now.getFullYear()+543} เวลา ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} น.`;
+                }
+                
+                if(kData.status !== 'disabled') {
+                    if(document.getElementById('section-dash-kormor').classList.contains('hidden') === false) loadDashboardKormor();
+                }
+            } catch(e) {}
+        }
+
+        function showDashboardMaintenance() {
+            document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
+            document.getElementById('dashboardMaintenance').classList.remove('hidden');
+            document.getElementById('dashboardMaintenance').classList.add('flex');
+            document.querySelectorAll('nav .tab-btn').forEach(b => b.classList.remove('tab-active'));
+        }
+
+        function toggleAddAdminTambon() {
+            const role = document.getElementById('addAdminRole').value;
+            const tbSelect = document.getElementById('addAdminTambon');
+            tbSelect.innerHTML = '';
+            if (role === 'Assistant Master Admin') {
+                tbSelect.add(new Option('ดูแลทุกตำบล (ALL)', 'ALL'));
+                tbSelect.disabled = true;
+                tbSelect.classList.add('bg-gray-100');
+            } else {
+                tbSelect.add(new Option('-- เลือกตำบล --', ''));
+                for(let t in villageData) tbSelect.add(new Option(t, t));
+                tbSelect.disabled = false;
+                tbSelect.classList.remove('bg-gray-100');
+            }
+        }
+
+        function initDropdowns() {
+            ['kormor', 'pranee'].forEach(prefix => { const tSel = document.getElementById(prefix + '_tambon'); if(tSel) for(let t in villageData) tSel.add(new Option(t, t)); });
+            ['k_filter_tambon', 'p_filter_tambon', 'admin_tambon', 'block_tambon', 'log_tambon', 'typo_tambon', 'reporter_scan_tambon', 'sweep_tambon'].forEach(id => { const el = document.getElementById(id); if(el) for(let t in villageData) el.add(new Option(t, t)); });
+            toggleAddAdminTambon();
+        }
+
+        function initMonthFilter(id) {
+            const sel = document.getElementById(id); if(!sel) return;
+            sel.innerHTML = '<option value="ALL">ทั้งหมด (ทุกรอบเดือน)</option>';
+            const thaiMonthsShort = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+            const thaiMonthsFull = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+            
+            let today = new Date();
+            let startYear = today.getFullYear() - 1; 
+            let endYear = today.getFullYear() + 1;   
+            
+            let d = new Date(startYear, 0, 1);
+            while (d <= new Date(endYear, 11, 31)) {
+                 const y = d.getFullYear(); const m = d.getMonth();
+                 sel.add(new Option(`รอบ 21 ${thaiMonthsShort[m===0?11:m-1]} ${m===0?y+542:y+543} - 20 ${thaiMonthsFull[m]} ${y+543}`, `${y}-${(m+1).toString().padStart(2,'0')}`));
+                 d.setMonth(m + 1);
+            }
+            let cY = today.getFullYear(); let cM = today.getMonth() + 1;
+            if (today.getDate() > 20) { cM += 1; if (cM > 12) { cM = 1; cY += 1; } }
+            const opt = sel.querySelector(`option[value="${cY}-${cM.toString().padStart(2, '0')}"]`);
+            if(opt) opt.selected = true; else sel.value = 'ALL';
+        }
+
+        function isInCycle(dateStr, filterMonthYear) {
+            if (filterMonthYear === 'ALL') return true; if (!dateStr || dateStr === "-") return false;
+            let d = new Date(parseDateRobust(dateStr)); if (isNaN(d.getTime())) return false; 
+            const [fYear, fMonth] = filterMonthYear.split('-').map(Number);
+            const dateInt = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+            const startInt = (fMonth === 1 ? fYear - 1 : fYear) * 10000 + (fMonth === 1 ? 12 : fMonth - 1) * 100 + 21;
+            const endInt = fYear * 10000 + fMonth * 100 + 20;
+            return dateInt >= startInt && dateInt <= endInt;
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden')); 
+            document.getElementById('dashboardMaintenance').classList.add('hidden');
+            document.getElementById('dashboardMaintenance').classList.remove('flex');
+            
+            document.getElementById('section-' + tabName).classList.remove('hidden');
+            document.querySelectorAll('nav .tab-btn').forEach(b => b.classList.remove('tab-active')); 
+            document.getElementById('tab-' + tabName).classList.add('tab-active');
+            
+            if(tabName === 'dash-kormor') loadDashboardKormor(); 
+            if(tabName === 'dash-pranee') loadDashboardPranee(); 
+            if(tabName === 'admin' && currentAdmin) loadAdminData();
+        }
+
+        function switchAdminTab(subTabName) {
+            document.querySelectorAll('#adminDash > div[id^="admin-sec-"]').forEach(s => s.classList.add('hidden')); 
+            document.getElementById('admin-sec-' + subTabName).classList.remove('hidden');
+            document.querySelectorAll('.admin-subtab-btn').forEach(b => b.classList.remove('admin-subtab-active')); 
+            document.getElementById('atab-' + subTabName).classList.add('admin-subtab-active');
+            
+            if(subTabName === 'manageData') loadAdminData(); 
+            if(subTabName === 'reporterStats') loadReporterStats();
+            if(subTabName === 'manageBlock') loadBlockListAndSettings(); 
+            if(subTabName === 'deleteLogs') loadDeletedLogs();
+            if(subTabName === 'manageAdmins') loadAdminsList();
+        }
+
+        function updateMooList(tId, mId, addAllOpt = false) {
+            const tVal = document.getElementById(tId).value; const mSel = document.getElementById(mId);
+            mSel.innerHTML = addAllOpt ? '<option value="ALL">ทุกหมู่บ้าน/แบนทั้งตำบล</option>' : '<option value="">-- เลือกหมู่บ้าน --</option>';
+            if(!tVal || tVal === 'ALL') { mSel.disabled = true; if(!addAllOpt) mSel.classList.add('input-disabled'); return; }
+            mSel.disabled = false; mSel.classList.remove('input-disabled');
+            if(villageData[tVal]) villageData[tVal].forEach(m => mSel.add(new Option(m, m)));
+        }
+
+        function updateMoo(p) { updateMooList(p+'_tambon', p+'_moo'); }
+        function updateDashMooFilter(p) { updateMooList(p+'_filter_tambon', p+'_filter_moo', true); }
+        function updateAdminMooFilter() { updateMooList('admin_tambon', 'admin_moo', true); }
+        function updateBlockMoo() { updateMooList('block_tambon', 'block_moo', true); }
+        function updateLogMoo() { updateMooList('log_tambon', 'log_moo', true); loadDeletedLogs(); }
+
+        function updateSubDomain() {
+            const mVal = document.getElementById('mainDomain').value; const sSel = document.getElementById('subDomain');
+            sSel.innerHTML = '<option value="">-- เลือกหัวข้อย่อย --</option>'; sSel.disabled = true; sSel.classList.add('input-disabled');
+            if(mVal && domainData[mVal]) { domainData[mVal].forEach(s => sSel.add(new Option(s, s))); sSel.disabled = false; sSel.classList.remove('input-disabled'); }
+        }
+
+        function togglePraneeUploads() {
+            const checkedEl = document.querySelector('input[name="result"]:checked');
+            const f2Div = document.getElementById('p_file2_div'); const f2Input = document.getElementById('p_file2');
+            if(checkedEl && checkedEl.value === 'ตกลงกันได้-ทำสัญญา') { f2Div.classList.remove('hidden'); f2Input.required = true; } 
+            else { f2Div.classList.add('hidden'); f2Input.required = false; f2Input.value = ""; }
+        }
+
+        const getBase64 = file => new Promise((resolve, reject) => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = error => reject(error); });
+        function getMimeType(file) { if(file.type) return file.type; const ext = file.name.split('.').pop().toLowerCase(); return ext==='pdf'?'application/pdf':(ext==='png'?'image/png':(ext==='gif'?'image/gif':'image/jpeg')); }
+
+        async function calculateImageHash(file) {
+            if (!file) return null;
+            try {
+                if (window.crypto && window.crypto.subtle && typeof file.arrayBuffer === 'function') {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const hashBuffer = await window.crypto.subtle.digest('SHA-256', arrayBuffer);
+                    return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+                }
+            } catch (e) {}
+            return "FB_" + file.name + "_" + file.size;
+        }
+
+        function isLateSubmission(dateString) {
+            if (!dateString) return false;
+            const actDate = new Date(parseDateRobust(dateString)); actDate.setHours(0, 0, 0, 0);
+            const today = new Date(); const currentCycleStart = new Date(today.getFullYear(), today.getMonth() - (today.getDate() >= 21 ? 0 : 1), 21);
+            currentCycleStart.setHours(0, 0, 0, 0); return actDate < currentCycleStart;
+        }
+
+        async function handleKormorSubmit(e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            if (isLateSubmission(formData.get('report_date'))) return Swal.fire('รายงานเกินกำหนด', 'ไม่อนุญาตให้รายงานย้อนหลังเกินรอบปิด', 'error');
+            const f1 = document.getElementById('k_img1').files[0]; const f2 = document.getElementById('k_img2').files[0];
+            if (!f1 || !f2) return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาอัพโหลดรูปภาพให้ครบ 2 ภาพ', 'warning');
+
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            try {
+                const data = {}; formData.forEach((value, key) => data[key] = value);
+                data.image1 = await getBase64(f1); data.image1_name = f1.name; data.image1_mime = getMimeType(f1);
+                data.image2 = await getBase64(f2); data.image2_name = f2.name; data.image2_mime = getMimeType(f2);
+                data.hash1 = await calculateImageHash(f1); data.hash2 = await calculateImageHash(f2);
+                const result = await fetchPostJSON('submitReport', data);
+                if(result.status !== 'success') throw new Error(result.message);
+                e.target.reset(); Swal.fire('สำเร็จ', 'บันทึกรายงานเรียบร้อยแล้ว', 'success');
+                cachedKormorData = []; prefetchData(); switchTab('dash-kormor');
+            } catch(err) { Swal.fire('ไม่สามารถส่งรายงานได้', err.message, 'error'); } 
+            finally { document.getElementById('loadingOverlay').style.display = 'none'; }
+        }
+
+        async function handlePraneeSubmit(e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            if (isLateSubmission(formData.get('mediation_date'))) return Swal.fire('รายงานเกินกำหนด', 'ไม่อนุญาตให้รายงานย้อนหลังเกินรอบปิด', 'error');
+
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            try {
+                const data = {}; formData.forEach((value, key) => data[key] = value);
+                const agencies = []; document.querySelectorAll('input[name="other_agency"]:checked').forEach(cb => agencies.push(cb.value)); data.other_agency = agencies.join(', ');
+                const f1 = document.getElementById('p_file1').files[0]; if(f1) { data.file1_data = await getBase64(f1); data.file1_name = f1.name; data.file1_mime = getMimeType(f1); data.hash1 = await calculateImageHash(f1); }
+                const f2 = document.getElementById('p_file2').files[0]; if(f2) { data.file2_data = await getBase64(f2); data.file2_name = f2.name; data.file2_mime = getMimeType(f2); data.hash2 = await calculateImageHash(f2); }
+                const result = await fetchPostJSON('submitPranee', data);
+                if(result.status !== 'success') throw new Error(result.message);
+                e.target.reset(); togglePraneeUploads(); Swal.fire('สำเร็จ', 'ส่งรายงานไกล่เกลี่ยเรียบร้อย', 'success');
+                cachedPraneeData = []; prefetchData(); switchTab('dash-pranee');
+            } catch(err) { Swal.fire('ไม่สามารถส่งรายงานได้', err.message, 'error'); } 
+            finally { document.getElementById('loadingOverlay').style.display = 'none'; }
+        }
+
+        const safeNum = val => Number(String(val).replace(/,/g, '')) || 0;
+
+        function sortVillages(villageCountMap, filterTambon) {
+            let targetVillages = [];
+            if(filterTambon !== 'ALL') { targetVillages = villageData[filterTambon].map(m => ({t: filterTambon, m: m})); } 
+            else { for(let t in villageData) villageData[t].forEach(m => targetVillages.push({t, m})); }
+            
+            let allVStats = targetVillages.map(v => { const k = `${v.t} ${v.m}`; return { ...v, name: k, count: villageCountMap[k] || 0 }; });
+            const maxCount = allVStats.reduce((max, v) => Math.max(max, v.count), 0);
+            const halfMax = maxCount > 0 ? (maxCount / 2) : 0;
+            
+            let sortedAll = allVStats.sort((a, b) => { 
+                if(a.count !== b.count) return b.count - a.count; 
+                if(a.t !== b.t) return a.t.localeCompare(b.t); 
+                const matchA = a.m.match(/\d+/); const matchB = b.m.match(/\d+/);
+                return parseInt(matchA ? matchA[0] : 0) - parseInt(matchB ? matchB[0] : 0); 
+            });
+            
+            let top5 = [], moreHalf = [], lessHalf = [], zeros = [];
+            if(maxCount > 0) {
+                let activeVillages = sortedAll.filter(v => v.count > 0);
+                let currentRank = 1; 
+                let lastCount = activeVillages.length > 0 ? activeVillages[0].count : 0;
+                for(let i=0; i<activeVillages.length; i++) {
+                    if(activeVillages[i].count < lastCount) { currentRank++; lastCount = activeVillages[i].count; }
+                    if(currentRank <= 5 && activeVillages[i].count >= halfMax) top5.push(activeVillages[i]);
+                }
+                moreHalf = sortedAll.filter(v => v.count >= halfMax && v.count > 0 && !top5.includes(v));
+                lessHalf = sortedAll.filter(v => v.count < halfMax && v.count > 0 && !top5.includes(v));
+                zeros = sortedAll.filter(v => v.count === 0);
+            } else { zeros = sortedAll; }
+            return { top5, moreHalf, lessHalf, zeros, maxCount };
+        }
+
+        // ================= Refresh Functions =================
+        function refreshDashboardKormor() {
+            cachedKormorData = [];
+            document.getElementById('k_last_update').innerText = "กำลังอัปเดต...";
+            loadDashboardKormor();
+        }
+
+        function refreshDashboardPranee() {
+            cachedPraneeData = [];
+            document.getElementById('p_last_update').innerText = "กำลังอัปเดต...";
+            loadDashboardPranee();
+        }
+
+        async function loadDashboardKormor() {
+            if(cachedKormorData.length === 0) {
+                document.getElementById('loadingOverlay').style.display = 'flex';
+                try { const data = await fetchPostJSON('getDashboardKormor'); 
+                      if(data.status === 'disabled') { showDashboardMaintenance(); document.getElementById('loadingOverlay').style.display = 'none'; return; }
+                      if(data.status === 'error') throw new Error(data.message); 
+                      cachedKormorData = data.all_data || []; 
+                      
+                      let now = new Date();
+                      lastUpdateKormor = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth()+1).toString().padStart(2, '0')}/${now.getFullYear()+543} เวลา ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} น.`;
+                } 
+                catch (e) { cachedKormorData = []; document.getElementById('loadingOverlay').style.display = 'none'; return; } 
+                document.getElementById('loadingOverlay').style.display = 'none';
+            }
+            
+            document.getElementById('k_last_update').innerText = `อัปเดตล่าสุด: ${lastUpdateKormor}`;
+            document.getElementById('kormorDashContent').classList.remove('hidden');
+            
+            const month = document.getElementById('k_filter_month').value; const tFilter = document.getElementById('k_filter_tambon').value; const mFilter = document.getElementById('k_filter_moo').value;
+            let filtered = cachedKormorData.filter(d => isInCycle(d.date, month));
+            if(tFilter !== 'ALL') filtered = filtered.filter(d => d.tambon === tFilter);
+            if(mFilter !== 'ALL' && !document.getElementById('k_filter_moo').disabled) filtered = filtered.filter(d => d.moo === mFilter);
+
+            try {
+                document.getElementById('k_total').innerText = filtered.length;
+                document.getElementById('k_budget').innerText = filtered.reduce((s, i) => s + safeNum(i.budget), 0).toLocaleString();
+                document.getElementById('k_done').innerText = filtered.filter(i => String(i.status || '').includes('ดำเนินการแล้วเสร็จ')).length;
+                document.getElementById('k_people').innerText = filtered.reduce((s, i) => s + safeNum(i.people), 0).toLocaleString();
+            } catch(e) {}
+
+            const domains = {}; const villageCounts = {}; const tambonStats = {};
+            let reportersMap = {};
+            
+            filtered.forEach(d => {
+                const dKey = (d.domain && typeof d.domain === 'string') ? d.domain.split('.')[0] : "อื่นๆ"; domains["ด้านที่ " + dKey] = (domains["ด้านที่ " + dKey] || 0) + 1;
+                let t = String(d.tambon || '').trim(); let m = String(d.moo || '').trim();
+                if (t && m) villageCounts[`${t} ${m}`] = (villageCounts[`${t} ${m}`] || 0) + 1;
+                if (t) tambonStats[t] = (tambonStats[t] || 0) + 1;
+                
+                let name = d.reporter_clean || "ไม่ระบุชื่อ";
+                let repKey = `${name}|||${t}|||${m}`;
+                reportersMap[repKey] = (reportersMap[repKey] || 0) + 1;
+            });
+
+            // Reporter Stats on Main Dashboard
+            let repList = [];
+            for(let key in reportersMap) {
+                let pts = key.split("|||");
+                repList.push({ name: pts[0], tambon: pts[1], moo: pts[2], count: reportersMap[key] });
+            }
+            repList.sort((a,b) => b.count - a.count);
+            const rMaxCount = repList.length > 0 ? repList[0].count : 0;
+            const rHalfMax = rMaxCount > 0 ? rMaxCount / 2 : 0;
+            let rTop5 = [], rMoreHalf = [];
+            if (rMaxCount > 0) {
+                let rRank = 1; let rLastCount = repList[0].count;
+                for (let i = 0; i < repList.length; i++) {
+                    if (repList[i].count < rLastCount) { rRank++; rLastCount = repList[i].count; }
+                    if (rRank <= 5 && repList[i].count >= rHalfMax) rTop5.push(repList[i]);
+                }
+                rMoreHalf = repList.filter(r => r.count >= rHalfMax && r.count > 0 && !rTop5.includes(r));
+            }
+            const renderRep = (arr) => arr.map((v, i) => `<li class="flex text-sm py-1 border-b border-gray-50 last:border-0"><span class="w-6 text-gray-400">${i + 1}.</span> <span class="flex-1">${v.name} <span class="text-[10px] text-gray-500">(${v.moo})</span></span> <span class="font-semibold text-blue-700 ml-2">(${v.count})</span></li>`).join('');
+            document.getElementById('k_rep_top5').innerHTML = renderRep(rTop5) || '<li class="text-gray-400 text-sm">ไม่มีข้อมูล</li>';
+            document.getElementById('k_rep_more_half').innerHTML = renderRep(rMoreHalf) || '<li class="text-gray-400 text-sm">ไม่มีข้อมูล</li>';
+
+            try {
+                document.getElementById('k_tambon_stats').innerHTML = Object.entries(tambonStats).sort((a,b)=>b[1]-a[1]).map(t => `<tr class="border-b"><td class="p-3 text-sm text-gray-700">${t[0]}</td><td class="p-3 text-right font-bold text-green-700">${t[1]}</td></tr>`).join('') || '<tr><td colspan="2" class="p-4 text-center text-gray-400">ไม่มีข้อมูล</td></tr>';
+                const groups = sortVillages(villageCounts, tFilter);
+                const rL = (arr) => arr.map((v, i) => `<li class="flex text-sm py-1 border-b border-gray-50 last:border-0"><span class="w-6 text-gray-400">${i + 1}.</span> <span class="flex-1">${v.name}</span> <span class="font-semibold text-green-700 ml-2">(${v.count})</span></li>`).join('');
+                const rZ = (arr) => arr.map((v, i) => `<li class="flex text-sm py-1 border-b border-red-50 last:border-0"><span class="w-6">${i + 1}.</span> <span>${v.name}</span></li>`).join('');
+                document.getElementById('k_top5').innerHTML = rL(groups.top5) || '<li class="text-gray-400 text-sm">ไม่มีข้อมูล</li>';
+                document.getElementById('k_more_half').innerHTML = rL(groups.moreHalf) || '<li class="text-gray-400 text-sm">ไม่มีข้อมูล</li>';
+                document.getElementById('k_less_half').innerHTML = rL(groups.lessHalf) || '<li class="text-gray-400 text-sm">ไม่มีข้อมูล</li>';
+                document.getElementById('k_zero').innerHTML = rZ(groups.zeros) || '<li class="text-gray-400 text-sm">ไม่มีข้อมูล</li>';
+            } catch(e) {}
+
+            try {
+                filtered.sort((a, b) => new Date(parseDateRobust(b.date)) - new Date(parseDateRobust(a.date)));
+                const tableData = filtered.map(r => {
+                    let fileBtns = '';
+                    if(r.img1 && String(r.img1).trim() !== '') fileBtns += `<a href="${r.img1}" target="_blank" class="inline-flex items-center justify-center bg-green-500 text-white px-3 py-1 rounded-full text-xs mb-1">ภาพ 1</a><br>`;
+                    if(r.img2 && String(r.img2).trim() !== '') fileBtns += `<a href="${r.img2}" target="_blank" class="inline-flex items-center justify-center bg-green-500 text-white px-3 py-1 rounded-full text-xs">ภาพ 2</a>`;
+                    return {
+                        date: `<div class="whitespace-nowrap">${r.display_date || '-'}</div>`, location: `<div><b>${r.tambon || '-'}</b><br><span class="text-xs text-gray-500">${r.moo || '-'}</span></div>`,
+                        activity: `<div class="whitespace-normal break-words">${r.activity || '-'}</div>`, status: `<div class="text-center text-xs font-bold text-green-700">${r.status || '-'}</div>`, files: `<div class="text-center">${fileBtns || '-'}</div>`
+                    };
+                });
+                renderTable('tableKormor', tableData, ['date', 'location', 'activity', 'status', 'files']);
+            } catch(e) {}
+            try { renderChart('chartKormorDomain', 'doughnut', {labels: Object.keys(domains), data: Object.values(domains)}, 'สัดส่วนภารกิจ'); } catch(e) {}
+        }
+
+        async function loadDashboardPranee() {
+            if(cachedPraneeData.length === 0) {
+                document.getElementById('loadingOverlay').style.display = 'flex';
+                try { const data = await fetchPostJSON('getDashboardPranee'); 
+                      if(data.status === 'disabled') { showDashboardMaintenance(); document.getElementById('loadingOverlay').style.display = 'none'; return; }
+                      if(data.status === 'error') throw new Error(data.message); 
+                      cachedPraneeData = data.all_data || []; 
+                      
+                      let now = new Date();
+                      lastUpdatePranee = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth()+1).toString().padStart(2, '0')}/${now.getFullYear()+543} เวลา ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} น.`;
+                } 
+                catch(e) { cachedPraneeData = []; document.getElementById('loadingOverlay').style.display = 'none'; return; } 
+                document.getElementById('loadingOverlay').style.display = 'none';
+            }
+            
+            document.getElementById('p_last_update').innerText = `อัปเดตล่าสุด: ${lastUpdatePranee}`;
+            document.getElementById('praneeDashContent').classList.remove('hidden');
+
+            const month = document.getElementById('p_filter_month').value; const tFilter = document.getElementById('p_filter_tambon').value; const mFilter = document.getElementById('p_filter_moo').value;
+            let filtered = cachedPraneeData.filter(d => isInCycle(d.date, month));
+            if(tFilter !== 'ALL') filtered = filtered.filter(d => d.tambon === tFilter);
+            if(mFilter !== 'ALL' && !document.getElementById('p_filter_moo').disabled) filtered = filtered.filter(d => d.moo === mFilter);
+
+            try {
+                document.getElementById('p_total').innerText = filtered.length;
+                document.getElementById('p_success').innerText = filtered.filter(i => String(i.result || '').includes('ตกลงกันได้')).length;
+                document.getElementById('p_capital').innerText = filtered.reduce((s, i) => s + safeNum(i.capital), 0).toLocaleString();
+            } catch(e) {}
+
+            const results = {}; const villageCounts = {}; const tambonStats = {};
+            filtered.forEach(d => {
+                let resShort = (d.result && typeof d.result === 'string') ? d.result.split(' ')[0] : 'ไม่ระบุ'; results[resShort] = (results[resShort] || 0) + 1;
+                let t = String(d.tambon || '').trim(); let m = String(d.moo || '').trim();
+                if (t && m) villageCounts[`${t} ${m}`] = (villageCounts[`${t} ${m}`] || 0) + 1;
+                if (t) tambonStats[t] = (tambonStats[t] || 0) + 1;
+            });
+
+            try {
+                document.getElementById('p_tambon_stats').innerHTML = Object.entries(tambonStats).sort((a,b)=>b[1]-a[1]).map(t => `<tr class="border-b"><td class="p-3 text-sm text-gray-700">${t[0]}</td><td class="p-3 text-right font-bold text-blue-700">${t[1]}</td></tr>`).join('') || '<tr><td colspan="2" class="p-4 text-center text-gray-400">ไม่มีข้อมูล</td></tr>';
+                const groups = sortVillages(villageCounts, tFilter);
+                const rL = (arr) => arr.map((v, i) => `<li class="flex text-sm py-1 border-b border-gray-50 last:border-0"><span class="w-6 text-gray-400">${i + 1}.</span> <span class="flex-1">${v.name}</span> <span class="font-semibold text-blue-700 ml-2">(${v.count})</span></li>`).join('');
+                const rZ = (arr) => arr.map((v, i) => `<li class="flex text-sm py-1 border-b border-red-50 last:border-0"><span class="w-6">${i + 1}.</span> <span>${v.name}</span></li>`).join('');
+                document.getElementById('p_top5').innerHTML = rL(groups.top5) || '<li class="text-gray-400 text-sm">ไม่มีข้อมูล</li>';
+                document.getElementById('p_more_half').innerHTML = rL(groups.moreHalf) || '<li class="text-gray-400 text-sm">ไม่มีข้อมูล</li>';
+                document.getElementById('p_less_half').innerHTML = rL(groups.lessHalf) || '<li class="text-gray-400 text-sm">ไม่มีข้อมูล</li>';
+                document.getElementById('p_zero').innerHTML = rZ(groups.zeros) || '<li class="text-gray-400 text-sm">ไม่มีข้อมูล</li>';
+            } catch(e) {}
+
+            try {
+                filtered.sort((a, b) => new Date(parseDateRobust(b.date)) - new Date(parseDateRobust(a.date)));
+                const tableData = filtered.map(r => {
+                    let fileBtns = '';
+                    if(r.file1 && String(r.file1).trim() !== '') fileBtns += `<a href="${r.file1}" target="_blank" class="inline-flex items-center justify-center bg-red-500 text-white px-3 py-1 rounded-full text-xs mb-1">บันทึกยินยอม</a><br>`;
+                    if(r.file2 && String(r.file2).trim() !== '') fileBtns += `<a href="${r.file2}" target="_blank" class="inline-flex items-center justify-center bg-red-500 text-white px-3 py-1 rounded-full text-xs">สัญญา</a>`;
+                    return {
+                        date: `<div class="whitespace-nowrap">${r.display_date || '-'}</div>`, location: `<div><b>${r.tambon || '-'}</b><br><span class="text-xs text-gray-500">${r.moo || '-'}</span></div>`,
+                        subject: `<div class="whitespace-normal break-words">${r.subject || '-'}</div>`, result: `<div class="text-center text-xs font-bold text-red-700">${r.result || 'ไม่ระบุ'}</div>`, files: `<div class="text-center">${fileBtns || '-'}</div>`
+                    };
+                });
+                renderTable('tablePranee', tableData, ['date', 'location', 'subject', 'result', 'files']);
+            } catch(e) {}
+            try { renderChart('chartPraneeResult', 'doughnut', {labels: Object.keys(results), data: Object.values(results)}, 'ผลการเจรจา'); } catch(e) {}
+        }
+
+        // ==========================================
+        // ระบบ ADMIN & ULTIMATE SMART DUPLICATE SCAN
+        // ==========================================
+        
+        async function handleLogin(e) {
+            e.preventDefault();
+            const u = document.getElementById('loginUser').value; const p = document.getElementById('loginPass').value;
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            try {
+                const data = await fetchPostJSON('login', { user: u, pass: p });
+                if(data.status === 'success') {
+                    currentAdmin = data.data; currentAdmin.name = u;
+                    document.getElementById('adminLogin').classList.add('hidden'); 
+                    document.getElementById('adminDash').classList.remove('hidden'); 
+                    document.getElementById('btnLogout').classList.remove('hidden');
+                    
+                    let roleNameTh = currentAdmin.role === 'Master Admin' ? 'แอดมินสูงสุด' : (currentAdmin.role === 'Assistant Master Admin' ? 'ผู้ช่วยแอดมินหลัก' : 'แอดมินตำบล');
+                    document.getElementById('adminInfo').innerText = `สิทธิ์: ${roleNameTh} (${currentAdmin.tambon})`;
+                    
+                    // ตั้งค่า Dropdown การกรองข้อมูล
+                    if(currentAdmin.role === 'Tambon Admin') {
+                        ['admin_tambon', 'log_tambon', 'typo_tambon', 'reporter_scan_tambon', 'sweep_tambon'].forEach(id => {
+                            let el = document.getElementById(id);
+                            if(el) { el.innerHTML = `<option value="${currentAdmin.tambon}">${currentAdmin.tambon}</option>`; el.disabled = true; }
+                        });
+                    } else {
+                        // Master Admin และ Assistant Master Admin ให้เลือกได้ทุกตำบล
+                        ['admin_tambon', 'log_tambon', 'typo_tambon', 'reporter_scan_tambon', 'sweep_tambon'].forEach(id => {
+                            let el = document.getElementById(id);
+                            if(el) { el.innerHTML = '<option value="ALL">ทุกตำบล</option>'; for(let t in villageData) el.add(new Option(t, t)); el.disabled = false; }
+                        });
+                    }
+
+                    // ตั้งค่าสิทธิ์การเห็นเมนู
+                    if (currentAdmin.role === 'Master Admin') {
+                        document.getElementById('atab-reporterStats').classList.remove('hidden');
+                        document.getElementById('atab-manageBlock').classList.remove('hidden');
+                        document.getElementById('atab-exportExcel').classList.remove('hidden');
+                        document.getElementById('atab-manageAdmins').classList.remove('hidden');
+                        document.getElementById('atab-aiSweep').classList.remove('hidden');
+                        document.getElementById('dashToggleContainer').classList.remove('hidden');
+                        checkDashboardToggleStatus();
+                    } else {
+                        // Tambon Admin & Assistant Master Admin
+                        document.getElementById('atab-reporterStats').classList.add('hidden');
+                        document.getElementById('atab-manageBlock').classList.add('hidden');
+                        document.getElementById('atab-exportExcel').classList.add('hidden');
+                        document.getElementById('atab-manageAdmins').classList.add('hidden');
+                        document.getElementById('atab-aiSweep').classList.add('hidden');
+                        document.getElementById('dashToggleContainer').classList.add('hidden');
+                    }
+                    
+                    updateAdminMooFilter();
+                    loadAdminData();
+                } else { Swal.fire('ล็อคอินล้มเหลว', 'ชื่อผู้ใช้ หรือ รหัสผ่านไม่ถูกต้อง', 'error'); }
+            } catch(err) { Swal.fire('ข้อผิดพลาดระบบ', err.message, 'error'); } finally { document.getElementById('loadingOverlay').style.display = 'none'; }
+        }
+
+        function logout() { currentAdmin = null; document.getElementById('adminLogin').classList.remove('hidden'); document.getElementById('adminDash').classList.add('hidden'); document.getElementById('btnLogout').classList.add('hidden'); document.getElementById('loginPass').value = ''; }
+
+        async function checkDashboardToggleStatus() {
+            try {
+                const res = await fetchPostJSON('getSettings');
+                if(res.status === 'success') {
+                    const cb = document.getElementById('dashToggle');
+                    const txt = document.getElementById('dashToggleText');
+                    cb.checked = res.dashboardActive;
+                    if(res.dashboardActive) {
+                        txt.innerText = "เปิดใช้งานอยู่"; txt.className = "text-sm font-bold text-green-600";
+                    } else {
+                        txt.innerText = "ปิดการใช้งาน"; txt.className = "text-sm font-bold text-red-600";
+                    }
+                }
+            } catch(e) {}
+        }
+
+        async function toggleDashboardStatus() {
+            const cb = document.getElementById('dashToggle');
+            const txt = document.getElementById('dashToggleText');
+            const isActive = cb.checked;
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            try {
+                const res = await fetchPostJSON('toggleDashboard', { active: isActive });
+                if(res.status === 'success') {
+                    if(isActive) {
+                        txt.innerText = "เปิดใช้งานอยู่"; txt.className = "text-sm font-bold text-green-600";
+                    } else {
+                        txt.innerText = "ปิดการใช้งาน"; txt.className = "text-sm font-bold text-red-600";
+                    }
+                    Swal.fire({toast: true, position: 'top-end', icon: 'success', title: 'เปลี่ยนสถานะแดชบอร์ดแล้ว', showConfirmButton: false, timer: 1500});
+                }
+            } catch(e) { cb.checked = !isActive; } 
+            finally { document.getElementById('loadingOverlay').style.display = 'none'; }
+        }
+
+        async function loadAdminData() {
+            if(!currentAdmin) return;
+            const type = document.getElementById('admin_type').value; const tambon = document.getElementById('admin_tambon').value;
+            const month = document.getElementById('admin_month').value; const moo = document.getElementById('admin_moo').value;
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            try {
+                const data = await fetchPostJSON('getAdminData', { type: type, tambon: tambon, month: month, moo: moo });
+                const tbody = document.getElementById('tableAdminData');
+                if(!data.records || data.records.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-500">ไม่มีข้อมูล</td></tr>'; } 
+                else {
+                    tbody.innerHTML = data.records.map(r => `
+                        <tr class="border-b hover:bg-gray-50 admin-data-row">
+                            <td class="p-3 align-top text-sm"><span class="font-bold text-blue-800">${r.rawDate}</span><br><span class="text-[10px] text-gray-400">ส่งเมื่อ: ${r.date}</span></td>
+                            <td class="p-3 align-top text-sm"><b>${r.tambon}</b><br><span class="text-xs text-gray-500">${r.moo}</span></td>
+                            <td class="p-3 align-top text-sm whitespace-normal break-words search-content">${r.subject}<br><span class="text-xs text-gray-500">${r.details}</span><br>${r.remark && r.remark.includes('[AI ตรวจผ่าน]') ? '<span class="text-[10px] bg-green-100 text-green-800 px-1 rounded">✔ AI ตรวจแล้ว</span>' : ''}</td>
+                            <td class="p-3 align-top text-center flex flex-col gap-1">
+                                <button type="button" onclick="openEditModal('${type}', ${r.row})" class="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs"><i class="fas fa-edit"></i> แก้ไข</button>
+                                <button type="button" onclick="deleteRecord('${type}', ${r.row})" class="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs"><i class="fas fa-trash"></i> ลบ</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+                filterAdminTable(); 
+            } catch(e) {} finally { document.getElementById('loadingOverlay').style.display = 'none'; }
+        }
+
+        function filterAdminTable() {
+            const input = document.getElementById("admin_search");
+            if (!input) return;
+            const filter = input.value.toUpperCase();
+            const trs = document.querySelectorAll('.admin-data-row');
+            trs.forEach(tr => {
+                const searchContent = tr.querySelector('.search-content');
+                if (searchContent) {
+                    const txtValue = searchContent.textContent || searchContent.innerText;
+                    tr.style.display = txtValue.toUpperCase().indexOf(filter) > -1 ? "" : "none";
+                }
+            });
+        }
+
+        // --- ระบบสแกนคำผิด ---
+        async function runTypoScan() {
+            if(!currentAdmin) return;
+            const type = document.getElementById('typo_type').value; const tambon = document.getElementById('typo_tambon').value;
+            const month = document.getElementById('typo_month').value; const moo = document.getElementById('typo_moo').value;
+            document.getElementById('loadingOverlay').style.display = 'flex'; document.getElementById('loadingText').innerText = 'กำลังสแกนหาคำผิด...';
+            try {
+                const data = await fetchPostJSON('getAdminData', { type: type, tambon: tambon, month: month, moo: moo, scanAll: true });
+                const records = data.records || []; let typosFound = [];
+                
+                const invalidStart = /^[ัิีึืุู่-๋์ะาำ]/; 
+                const multipleTones = /[่-๋]{2,}/; 
+                const multipleVowels = /[ัิีึืุู]{2,}/; 
+                const vowelAfterSaraA = /ะ[ัิีึืุู่-๋์]/; 
+                const spaceBeforeTone = /\s[ัิีึืุู่-๋์ะาำ]/; 
+                const commonTypos = [
+                    { wrong: /โครงกาน/g, right: "โครงการ" }, { wrong: /พัฒณา/g, right: "พัฒนา" }, { wrong: /กรรการ/g, right: "กรรมการ" },
+                    { wrong: /ประชุุม|ปะชุม/g, right: "ประชุม" }, { wrong: /หมูู่บ้าน|หมุ่บ้าน|หมูบ้าน/g, right: "หมู่บ้าน" },
+                    { wrong: /ปฎิบัติ/g, right: "ปฏิบัติ" }, { wrong: /สังเกตุ/g, right: "สังเกต" }, { wrong: /อนุญาติ/g, right: "อนุญาต" },
+                    { wrong: /อณุรักษ์/g, right: "อนุรักษ์" }, { wrong: /ประศาน/g, right: "ประสาน" }, { wrong: /ปะชาคม/g, right: "ประชาคม" },
+                    { wrong: /ไกล่เกลีย|ไกเกลี่ย/g, right: "ไกล่เกลี่ย" }, { wrong: /ศาษนา/g, right: "ศาสนา" }, { wrong: /โอกาศ/g, right: "โอกาส" },
+                    { wrong: /กฏหมาย/g, right: "กฎหมาย" }, { wrong: /บรรณทึก|บันทึึก/g, right: "บันทึก" }, { wrong: /อำเพอ/g, right: "อำเภอ" },
+                    { wrong: /จังหวัต|จังหวัตร/g, right: "จังหวัด" }
+                ];
+                
+                records.forEach(r => {
+                    let isTypo = false; let reasons = [];
+                    let subj = String(r.subject || "").trim(); 
+                    let det = String(r.details || "").trim();
+                    let loc = String(r.location || "").trim();
+
+                    const checkGrammar = (text, textContext) => {
+                        if (textContext === "ชื่อกิจกรรม" && text.length > 0 && text.length < 4 && !/^[A-Za-z0-9เแโใไก-ฮ]+$/.test(text)) { isTypo = true; reasons.push(`ชื่อกิจกรรมสั้นและมีอักขระผิดปกติ`); }
+                        if (invalidStart.test(text)) { isTypo = true; reasons.push(`${textContext}ขึ้นต้นด้วยสระบน/ล่าง หรือวรรณยุกต์ที่ผิดหลัก (สระลอย)`); }
+                        if (multipleTones.test(text)) { isTypo = true; reasons.push(`${textContext}พิมพ์วรรณยุกต์ซ้อนกัน`); }
+                        if (multipleVowels.test(text)) { isTypo = true; reasons.push(`${textContext}พิมพ์สระบน/ล่างซ้อนกัน`); }
+                        if (vowelAfterSaraA.test(text)) { isTypo = true; reasons.push(`${textContext}พิมพ์สระผิดรูป (มีสระอื่นตามหลังสระอะ)`); }
+                        if (spaceBeforeTone.test(text)) { isTypo = true; reasons.push(`${textContext}มีสระ/วรรณยุกต์ลอยอยู่เดี่ยวๆ หลังช่องว่าง`); }
+                        commonTypos.forEach(typo => { if (typo.wrong.test(text)) { isTypo = true; reasons.push(`${textContext}อาจสะกดผิด (ควรแก้เป็นคำว่า <span class="text-green-600 font-bold">"${typo.right}"</span>)`); } });
+                    };
+                    
+                    checkGrammar(subj, "ชื่อกิจกรรม"); 
+                    if (det.length > 0) checkGrammar(det, "รายละเอียด");
+                    if (loc.length > 0) checkGrammar(loc, "สถานที่");
+
+                    if (isTypo) typosFound.push({ ...r, typoReason: [...new Set(reasons)].join('<br>• ') });
+                });
+
+                const tbody = document.getElementById('tableTypoData');
+                if(typosFound.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="p-8 text-center text-green-600 font-bold"><i class="fas fa-check-circle text-3xl mb-2"></i><br>ไม่พบรายการที่น่าจะพิมพ์ผิดครับ</td></tr>';
+                } else {
+                    tbody.innerHTML = typosFound.map(r => `
+                        <tr class="border-b hover:bg-yellow-50">
+                            <td class="p-3 align-top text-sm"><span class="font-bold text-blue-800">${r.rawDate}</span></td>
+                            <td class="p-3 align-top text-sm"><b>${r.tambon}</b><br><span class="text-xs text-gray-500">${r.moo}</span></td>
+                            <td class="p-3 align-top text-sm whitespace-normal break-words">
+                                <div class="text-red-600 bg-red-50 border border-red-200 px-2 py-1 rounded text-xs mb-2 inline-block"><b><i class="fas fa-exclamation-circle mr-1"></i>สาเหตุที่พบ:</b><br>• ${r.typoReason}</div><br>
+                                <span class="font-bold">ชื่อกิจกรรม:</span> <span class="text-gray-800">${r.subject}</span><br>
+                                <span class="text-xs text-gray-500"><b>รายละเอียด:</b> ${r.details}</span><br>
+                                <span class="text-xs text-blue-600"><b>สถานที่:</b> ${r.location || '-'}</span>
+                            </td>
+                            <td class="p-3 align-top text-center flex flex-col gap-1">
+                                <button type="button" onclick="openEditModal('${type}', ${r.row})" class="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs"><i class="fas fa-edit"></i> แก้ไข</button>
+                                <button type="button" onclick="deleteRecord('${type}', ${r.row}, false, true)" class="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs"><i class="fas fa-trash"></i> ลบ</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch(e) { Swal.fire('Error', e.message, 'error'); } 
+            finally { document.getElementById('loadingOverlay').style.display = 'none'; document.getElementById('loadingText').innerText = 'กำลังดำเนินการ...'; }
+        }
+
+        // --- ระบบสถิติผู้รายงาน (Leaderboard) ---
+        function cleanReporterName(name) {
+            if(!name) return "ไม่ระบุชื่อ";
+            return String(name).replace(/^(นาย|นางสาว|นาง|น\.ส\.|ด\.ช\.|ด\.ญ\.|ว่าที่ ร\.ต\.|ร\.ต\.|พล\.ต\.)\s*/, "").replace(/[\s\t]+/g, " ").trim();
+        }
+
+        async function loadReporterStats() {
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            try {
+                const data = await fetchPostJSON('getAdminData', { type: 'kormor', tambon: 'ALL', month: 'ALL', moo: 'ALL', scanAll: true });
+                if(data.status !== 'success') throw new Error(); 
+                
+                const month = document.getElementById('reporter_month').value;
+                const scanTambon = document.getElementById('reporter_scan_tambon').value;
+                
+                let filtered = data.records || [];
+                if(month !== 'ALL') filtered = filtered.filter(d => isInCycle(d.rawDate, month));
+                if(scanTambon !== 'ALL') filtered = filtered.filter(d => d.tambon === scanTambon);
+
+                let reportersMap = {};
+                filtered.forEach(r => {
+                    let name = cleanReporterName(r.reporter) || "ไม่ระบุชื่อ";
+                    let key = `${name}|||${r.tambon}|||${r.moo}`;
+                    reportersMap[key] = (reportersMap[key] || 0) + 1;
+                });
+
+                let repList = [];
+                for(let key in reportersMap) {
+                    let pts = key.split("|||");
+                    repList.push({ name: pts[0], tambon: pts[1], moo: pts[2], count: reportersMap[key] });
+                }
+                repList.sort((a,b) => b.count - a.count);
+
+                const maxCount = repList.length > 0 ? repList[0].count : 0;
+                const halfMax = maxCount > 0 ? maxCount / 2 : 0;
+
+                let top5 = [], moreHalf = [], lessHalf = [];
+                if (maxCount > 0) {
+                    let currentRank = 1; let lastCount = repList[0].count;
+                    for (let i = 0; i < repList.length; i++) {
+                        if (repList[i].count < lastCount) { currentRank++; lastCount = repList[i].count; }
+                        if (currentRank <= 5 && repList[i].count >= halfMax) top5.push(repList[i]);
+                    }
+                    moreHalf = repList.filter(r => r.count >= halfMax && r.count > 0 && !top5.includes(r));
+                    lessHalf = repList.filter(r => r.count < halfMax && r.count > 0 && !top5.includes(r));
+                }
+
+                const rL = (arr) => arr.map((v, i) => `<li class="flex text-sm py-1 border-b border-gray-50 last:border-0"><span class="w-6 text-gray-400">${i + 1}.</span> <span class="flex-1">${v.name} <span class="text-[10px] text-gray-500">(${v.moo})</span></span> <span class="font-semibold text-blue-700 ml-2">(${v.count})</span></li>`).join('');
+                
+                document.getElementById('r_top5').innerHTML = rL(top5) || '<li class="text-gray-400 text-sm">ไม่มีข้อมูล</li>';
+                document.getElementById('r_more_half').innerHTML = rL(moreHalf) || '<li class="text-gray-400 text-sm">ไม่มีข้อมูล</li>';
+                document.getElementById('r_less_half').innerHTML = rL(lessHalf) || '<li class="text-gray-400 text-sm">ไม่มีข้อมูล</li>';
+
+                const tbody = document.getElementById('tableReporterStats');
+                if(repList.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-500">ไม่มีข้อมูลผู้รายงานในรอบนี้</td></tr>';
+                } else {
+                    tbody.innerHTML = repList.map((r, i) => `
+                        <tr class="border-b hover:bg-blue-50">
+                            <td class="p-3 text-center font-bold text-gray-500">${i+1}</td>
+                            <td class="p-3 font-bold text-blue-800">${r.name}</td>
+                            <td class="p-3">${r.tambon}</td>
+                            <td class="p-3 text-xs text-gray-600">${r.moo}</td>
+                            <td class="p-3 text-center font-bold text-green-600">${r.count}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch(e) {} finally { document.getElementById('loadingOverlay').style.display = 'none'; }
+        }
+
+        // --- ระบบสแกนหาชื่อผู้รายงานซ้ำ (รวมกลุ่มเป็นก้อน) ---
+        function calculateSimilarity(str1, str2) {
+            if (!str1 || !str2) return 0.0;
+            if (str1 === str2) return 1.0;
+            if (str1.length < 2 || str2.length < 2) return str1.includes(str2) || str2.includes(str1) ? 0.5 : 0.0;
+            let bigrams1 = []; for (let i = 0; i < str1.length - 1; i++) bigrams1.push(str1.substring(i, i + 2));
+            let bigrams2 = []; for (let i = 0; i < str2.length - 1; i++) bigrams2.push(str2.substring(i, i + 2));
+            let intersection = 0; let bg2_copy = [...bigrams2];
+            for (let i = 0; i < bigrams1.length; i++) { let index = bg2_copy.indexOf(bigrams1[i]); if (index !== -1) { intersection++; bg2_copy.splice(index, 1); } }
+            return (2.0 * intersection) / (bigrams1.length + bigrams2.length);
+        }
+
+        window.currentReporterClusters = []; 
+
+        async function scanReporterTypos() {
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            try {
+                const data = await fetchPostJSON('getAdminData', { type: 'kormor', tambon: 'ALL', month: 'ALL', moo: 'ALL', scanAll: true });
+                if(data.status !== 'success') throw new Error();
+                
+                const month = document.getElementById('reporter_month').value;
+                const scanTambon = document.getElementById('reporter_scan_tambon').value;
+                
+                let filtered = data.records || [];
+                if(month !== 'ALL') filtered = filtered.filter(d => isInCycle(d.rawDate, month));
+                if(scanTambon !== 'ALL') filtered = filtered.filter(d => d.tambon === scanTambon);
+
+                let nameGroups = {};
+                filtered.forEach(r => {
+                    let name = cleanReporterName(r.reporter) || "ไม่ระบุชื่อ";
+                    if(name === "ไม่ระบุชื่อ") return;
+                    let key = `${r.tambon}|||${r.moo}`;
+                    if(!nameGroups[key]) nameGroups[key] = new Set();
+                    nameGroups[key].add(name);
+                });
+
+                let clusters = [];
+                for (let locKey in nameGroups) {
+                    let names = Array.from(nameGroups[locKey]);
+                    let adj = {};
+                    names.forEach(n => adj[n] = []);
+                    
+                    for(let i=0; i<names.length; i++){
+                       for(let j=i+1; j<names.length; j++){
+                          if(calculateSimilarity(names[i].replace(/\s/g,''), names[j].replace(/\s/g,'')) >= 0.65) {
+                             adj[names[i]].push(names[j]);
+                             adj[names[j]].push(names[i]);
+                          }
+                       }
+                    }
+                    
+                    let visited = new Set();
+                    for(let n of names) {
+                       if(!visited.has(n) && adj[n].length > 0) {
+                          let q = [n];
+                          let cluster = [];
+                          while(q.length > 0) {
+                             let curr = q.shift();
+                             if(!visited.has(curr)) {
+                                visited.add(curr);
+                                cluster.push(curr);
+                                adj[curr].forEach(neighbor => {
+                                   if(!visited.has(neighbor)) q.push(neighbor);
+                                });
+                             }
+                          }
+                          if(cluster.length > 1) {
+                             let pts = locKey.split("|||");
+                             clusters.push({ tambon: pts[0], moo: pts[1], names: cluster });
+                          }
+                       }
+                    }
+                }
+
+                window.currentReporterClusters = clusters;
+
+                const container = document.getElementById('reporterScanResults');
+                if (clusters.length === 0) {
+                    container.innerHTML = '<div class="p-8 text-center text-green-600 font-bold bg-green-50 rounded-lg"><i class="fas fa-check-circle text-4xl mb-3"></i><br>ไม่พบรายชื่อผู้รายงานที่น่าจะพิมพ์ผิดหรือซ้ำซ้อนในหมู่บ้านเดียวกันครับ</div>';
+                } else {
+                    container.innerHTML = clusters.map((c, idx) => `
+                        <div class="bg-white p-4 border border-blue-200 rounded-lg shadow-sm" id="rep_card_${idx}">
+                            <div class="flex justify-between items-center border-b pb-2 mb-3">
+                                <span class="text-xs font-bold text-gray-500"><i class="fas fa-map-marker-alt"></i> ${c.tambon} - ${c.moo}</span>
+                                <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded font-bold">พบชื่อที่น่าจะเป็นคนเดียวกัน ${c.names.length} ชื่อ</span>
+                            </div>
+                            <div class="flex flex-col gap-2 mb-4">
+                                ${c.names.map(name => `
+                                    <label class="flex items-center gap-3 p-2 border rounded hover:bg-blue-50 cursor-pointer transition">
+                                        <input type="radio" name="keep_name_${idx}" value="${name}" class="w-4 h-4 accent-blue-600">
+                                        <span class="text-blue-800 font-medium">${name}</span>
+                                    </label>
+                                `).join('')}
+                            </div>
+                            <div class="flex gap-2">
+                                <button type="button" onclick="mergeReporterCluster(${idx})" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-sm font-bold shadow transition"><i class="fas fa-object-group mr-1"></i> รวมเป็นชื่อที่เลือก</button>
+                                <button type="button" onclick="document.getElementById('rep_card_${idx}').remove()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded text-sm font-bold transition">ไม่ใช่คนเดียวกัน</button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+                document.getElementById('reporterScanModal').style.display = 'block';
+            } catch(e) { Swal.fire('Error', e.message, 'error'); } 
+            finally { document.getElementById('loadingOverlay').style.display = 'none'; }
+        }
+
+        async function mergeReporterCluster(idx) {
+            const c = window.currentReporterClusters[idx];
+            const selected = document.querySelector(`input[name="keep_name_${idx}"]:checked`);
+            if(!selected) return Swal.fire('โปรดเลือกชื่อ', 'กรุณาติ๊กเลือกชื่อที่ถูกต้องที่สุดเพื่อเก็บไว้', 'warning');
+            const keepName = selected.value;
+            const namesToReplace = c.names.filter(n => n !== keepName);
+
+            const confirm = await Swal.fire({ title: 'ยืนยันการรวมชื่อ?', text: `ระบบจะแก้ชื่ออื่นๆ ในกลุ่มนี้ (${namesToReplace.join(', ')}) ให้เป็น "${keepName}" ทั้งหมด`, icon: 'warning', showCancelButton: true, confirmButtonText: 'ใช่, รวมเลย' });
+            if(!confirm.isConfirmed) return;
+
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            try {
+                const res = await fetchPostJSON('mergeReporters', { tambon: c.tambon, moo: c.moo, newName: keepName, oldNames: namesToReplace });
+                if(res.status === 'success') {
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `รวมชื่อสำเร็จ เปลี่ยนแปลง ${res.updated} รายการ`, showConfirmButton: false, timer: 3000 });
+                    document.getElementById(`rep_card_${idx}`).remove();
+                    cachedKormorData = []; await prefetchData(); loadReporterStats(); // รีเฟรชสถิติ
+                } else throw new Error(res.message);
+            } catch(e) { Swal.fire('Error', e.message, 'error'); } 
+            finally { document.getElementById('loadingOverlay').style.display = 'none'; }
+        }
+
+
+        // --- ระบบจัดการบล็อก (Block Management) ---
+        async function loadBlockListAndSettings() {
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            try {
+                const sRes = await fetchPostJSON('getSettings');
+                if (sRes.status === 'success') {
+                    document.getElementById('autoBlockLimit').value = sRes.threshold;
+                }
+                const res = await fetchPostJSON('getBlockList');
+                const tbody = document.getElementById('tableBlockList');
+                if (res.status === 'success' && res.data.length > 0) {
+                    tbody.innerHTML = res.data.map(b => `<tr class="border-b"><td class="p-2">${b.date}</td><td class="p-2"><b>${b.tambon}</b><br><span class="text-xs text-gray-500">${b.moo}</span></td><td class="p-2 text-red-600 text-xs">${b.reason}</td><td class="p-2 text-xs">${b.admin}</td><td class="p-2 text-center"><button type="button" onclick="removeBlock(${b.row})" class="bg-gray-500 hover:bg-gray-700 text-white px-2 py-1 text-xs rounded">ปลดบล็อก</button></td></tr>`).join('');
+                } else { tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-500">ไม่มีพื้นที่ที่ถูกบล็อกในขณะนี้</td></tr>'; }
+            } catch(e) {} finally { document.getElementById('loadingOverlay').style.display = 'none'; }
+        }
+
+        async function saveAutoBlockSettings() {
+            const limit = document.getElementById('autoBlockLimit').value;
+            if(limit === "") return Swal.fire('โปรดระบุจำนวน', '', 'warning');
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            try {
+                const res = await fetchPostJSON('updateSettings', { threshold: limit });
+                if(res.status === 'success') Swal.fire({toast: true, position: 'top-end', icon: 'success', title: 'บันทึกการตั้งค่าแล้ว', showConfirmButton: false, timer: 1500});
+            } catch(e) { Swal.fire('Error', e.message, 'error'); } finally { document.getElementById('loadingOverlay').style.display = 'none'; }
+        }
+
+        async function addBlockAction(e) {
+            e.preventDefault();
+            const tb = document.getElementById('block_tambon').value; const m = document.getElementById('block_moo').value; const r = document.getElementById('block_reason').value;
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            try {
+                const res = await fetchPostJSON('manageBlock', { subAction: 'add', tambon: tb, moo: m, reason: r, adminName: currentAdmin.name });
+                if(res.status === 'success') { Swal.fire('สำเร็จ', 'เพิ่มรายชื่อบล็อกเรียบร้อย', 'success'); e.target.reset(); updateBlockMoo(); loadBlockListAndSettings(); }
+            } catch(e) { Swal.fire('Error', e.message, 'error'); } finally { document.getElementById('loadingOverlay').style.display = 'none'; }
+        }
+
+        async function removeBlock(row) {
+            const confirm = await Swal.fire({ title: 'ปลดบล็อก?', text: "หมู่บ้านนี้จะสามารถส่งรายงานได้ตามปกติ", icon: 'question', showCancelButton: true });
+            if(!confirm.isConfirmed) return;
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            try {
+                const res = await fetchPostJSON('manageBlock', { subAction: 'remove', row: row });
+                if(res.status === 'success') { Swal.fire('สำเร็จ', 'ปลดบล็อกเรียบร้อย', 'success'); loadBlockListAndSettings(); }
+            } catch(e) { Swal.fire('Error', e.message, 'error'); } finally { document.getElementById('loadingOverlay').style.display = 'none'; }
+        }
+
+        // --- ระบบถังขยะและสถิติ (Deleted Logs) ---
+        function filterLogTable() {
+            const input = document.getElementById("log_search");
+            if (!input) return;
+            const filter = input.value.toUpperCase();
+            const trs = document.querySelectorAll('.log-data-row');
+            trs.forEach(tr => {
+                const txtValue = tr.textContent || tr.innerText;
+                tr.style.display = txtValue.toUpperCase().indexOf(filter) > -1 ? "" : "none";
+            });
+        }
+
+        async function loadDeletedLogs() {
+            const tb = document.getElementById('log_tambon').value; 
+            const mFilter = document.getElementById('log_moo').value;
+            const logMonth = document.getElementById('log_month').value;
+            const logType = document.getElementById('log_type').value;
+
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            try {
+                const res = await fetchPostJSON('getDeletedLogs', { tambon: tb, month: logMonth, tableType: logType });
+                const tbody = document.getElementById('tableDeletedLogs'); const countSpan = document.getElementById('delLogCount');
+                
+                if (res.status === 'success' && res.logs.length > 0) {
+                    let filteredLogs = res.logs;
+                    if (mFilter !== 'ALL') filteredLogs = filteredLogs.filter(l => l.moo === mFilter);
+                    if (filteredLogs.length > 0) {
+                        tbody.innerHTML = filteredLogs.map(l => `<tr class="border-b text-xs log-data-row"><td class="p-2">${l.del_date}</td><td class="p-2 font-bold text-orange-700">${l.type}</td><td class="p-2"><b>${l.tambon}</b><br><span class="text-gray-500">${l.moo}</span></td><td class="p-2 break-words max-w-xs">${l.subject}<br><span class="text-gray-400">วันที่จัด: ${l.act_date}</span></td><td class="p-2">${l.admin}</td></tr>`).join('');
+                    } else { tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-500">ไม่มีประวัติการลบข้อมูลในพื้นที่ที่เลือก</td></tr>'; }
+                    if (countSpan) countSpan.innerText = `(${filteredLogs.length} รายการ)`;
+                    
+                    const sCont = document.getElementById('delStatsContainer'); let statsHtml = '';
+                    if(tb === 'ALL') {
+                        let grandTotal = 0; for(let t in res.stats) { grandTotal += res.stats[t].total; }
+                        statsHtml = `<div class="card p-3 bg-orange-50 border border-orange-200 col-span-2 md:col-span-4 text-center"><p class="text-xs font-bold text-orange-800 mb-1">จำนวนข้อมูลที่ถูกลบทั้งหมด (ตามฟิลเตอร์)</p><h3 class="text-2xl font-bold text-orange-600">${grandTotal} รายการ</h3></div>`;
+                    } else if (res.stats[tb]) {
+                        const st = res.stats[tb];
+                        if (mFilter !== 'ALL') {
+                            let mooTotal = st.moos[mFilter] || 0;
+                            statsHtml = `<div class="card p-3 bg-orange-50 border border-orange-200"><p class="text-xs text-gray-600">ลบทั้งหมด (${mFilter})</p><h3 class="text-xl font-bold">${mooTotal}</h3></div>
+                                         <div class="card p-3 border border-gray-200 col-span-1 md:col-span-3"><p class="text-xs font-bold text-gray-600 mb-1">สถิติรายหมู่บ้านในตำบล ${tb}</p><ul class="text-xs space-y-1 flex flex-wrap gap-4">${Object.entries(st.moos).sort((a,b)=>b[1]-a[1]).map(m => `<li>${m[0]}: <span class="text-red-600 font-bold">${m[1]}</span></li>`).join('')}</ul></div>`;
+                        } else {
+                            statsHtml = `<div class="card p-3 bg-orange-50 border border-orange-200"><p class="text-xs text-gray-600">ลบทั้งหมด (${tb})</p><h3 class="text-xl font-bold">${st.total}</h3></div>
+                                         <div class="card p-3 border border-gray-200"><p class="text-xs text-gray-600">ลบจากผลงาน</p><h3 class="text-xl font-bold text-green-700">${st.kormor}</h3></div>
+                                         <div class="card p-3 border border-gray-200"><p class="text-xs text-gray-600">ลบจากไกล่เกลี่ย</p><h3 class="text-xl font-bold text-blue-700">${st.pranee}</h3></div>
+                                         <div class="card p-3 border border-gray-200 h-24 overflow-y-auto"><p class="text-xs font-bold text-gray-600 mb-1">ถูกลบมากสุด (หมู่บ้าน)</p><ul class="text-xs space-y-1">${Object.entries(st.moos).sort((a,b)=>b[1]-a[1]).map(m => `<li>${m[0]}: <span class="text-red-600 font-bold">${m[1]}</span></li>`).join('')}</ul></div>`;
+                        }
+                    }
+                    sCont.innerHTML = statsHtml;
+                } else { 
+                    tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-500">ไม่มีประวัติการลบข้อมูล</td></tr>'; 
+                    document.getElementById('delStatsContainer').innerHTML = '';
+                    if (countSpan) countSpan.innerText = `(0 รายการ)`;
+                }
+            } catch(e) {} finally { document.getElementById('loadingOverlay').style.display = 'none'; }
+        }
+
+        // --- ระบบจัดการแอดมิน (Admin Management) ---
+        function roleToThai(role) {
+            if(role === 'Master Admin') return 'แอดมินสูงสุด';
+            if(role === 'Assistant Master Admin') return 'ผู้ช่วยแอดมินหลัก';
+            return 'แอดมินตำบล';
+        }
+        
+        function roleColor(role) {
+            if(role === 'Master Admin') return 'text-red-600';
+            if(role === 'Assistant Master Admin') return 'text-purple-600';
+            return 'text-blue-600';
+        }
+
+        async function loadAdminsList() {
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            try {
+                const res = await fetchPostJSON('getAdmins');
+                const tbody = document.getElementById('tableAdminUsers');
+                if (res.status === 'success' && res.data.length > 0) {
+                    tbody.innerHTML = res.data.map(a => `
+                        <tr class="border-b">
+                            <td class="p-3 font-bold">${a.user}</td>
+                            <td class="p-3 text-xs font-bold ${roleColor(a.role)}">${roleToThai(a.role)}</td>
+                            <td class="p-3">${a.tambon}</td>
+                            <td class="p-3 text-center">
+                                ${a.role !== 'Master Admin' ? `
+                                <button type="button" onclick="changeAdminPass(${a.row}, '${a.user}')" class="bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 text-xs rounded shadow-sm mr-1">เปลี่ยนรหัส</button>
+                                <button type="button" onclick="deleteAdmin(${a.row}, '${a.user}')" class="bg-red-500 hover:bg-red-600 text-white px-2 py-1 text-xs rounded shadow-sm">ลบ</button>
+                                ` : '-'}
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch(e) {} finally { document.getElementById('loadingOverlay').style.display = 'none'; }
+        }
+
+        async function addAdminSubmit(e) {
+            e.preventDefault();
+            const u = document.getElementById('addAdminUser').value;
+            const p = document.getElementById('addAdminPass').value;
+            const r = document.getElementById('addAdminRole').value;
+            let t = document.getElementById('addAdminTambon').value;
+            
+            if (r === 'Assistant Master Admin') t = 'ALL';
+            if (r === 'Tambon Admin' && (t === 'ALL' || t === '')) return Swal.fire('ผิดพลาด', 'แอดมินระดับตำบล ต้องระบุพื้นที่ให้ชัดเจน', 'error');
+            
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            try {
+                const res = await fetchPostJSON('manageAdmins', { subAction: 'add', user: u, pass: p, role: r, tambon: t });
+                if(res.status === 'success') { Swal.fire('สำเร็จ', 'เพิ่มแอดมินใหม่เรียบร้อย', 'success'); e.target.reset(); toggleAddAdminTambon(); document.getElementById('addAdminModal').style.display='none'; loadAdminsList(); }
+            } catch(e) { Swal.fire('Error', e.message, 'error'); } finally { document.getElementById('loadingOverlay').style.display = 'none'; }
+        }
+
+        async function changeAdminPass(row, user) {
+            const { value: newPass } = await Swal.fire({
+              title: `เปลี่ยนรหัสผ่านสำหรับ ${user}`,
+              input: 'text', inputLabel: 'รหัสผ่านใหม่', inputPlaceholder: 'พิมพ์รหัสผ่านใหม่ที่นี่', showCancelButton: true, inputValidator: (value) => { if (!value) return 'กรุณาระบุรหัสผ่าน!' }
+            });
+            if (newPass) {
+                document.getElementById('loadingOverlay').style.display = 'flex';
+                try {
+                    const res = await fetchPostJSON('manageAdmins', { subAction: 'changePass', row: row, newPass: newPass });
+                    if(res.status === 'success') Swal.fire('สำเร็จ', 'เปลี่ยนรหัสผ่านเรียบร้อย', 'success');
+                } catch(e) { Swal.fire('Error', e.message, 'error'); } finally { document.getElementById('loadingOverlay').style.display = 'none'; }
+            }
+        }
+
+        async function deleteAdmin(row, user) {
+            const confirm = await Swal.fire({ title: 'ลบแอดมิน?', text: `ต้องการลบสิทธิ์แอดมินของ ${user} ใช่หรือไม่?`, icon: 'warning', showCancelButton: true });
+            if(!confirm.isConfirmed) return;
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            try {
+                const res = await fetchPostJSON('manageAdmins', { subAction: 'delete', row: row });
+                if(res.status === 'success') { Swal.fire('สำเร็จ', 'ลบแอดมินเรียบร้อย', 'success'); loadAdminsList(); }
+            } catch(e) { Swal.fire('Error', e.message, 'error'); } finally { document.getElementById('loadingOverlay').style.display = 'none'; }
+        }
+
+        // --- ระบบค้นหาข้อมูลซ้ำซ้อน (อัจฉริยะ) ---
+        function checkHighlySimilar(str1, str2) {
+            let s1 = String(str1 || "").replace(/โครงการ|กิจกรรม|เรื่อง|ที่/g, "").replace(/[\s\t\n\r]/g, "").replace(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/g, "").trim().toLowerCase();
+            let s2 = String(str2 || "").replace(/โครงการ|กิจกรรม|เรื่อง|ที่/g, "").replace(/[\s\t\n\r]/g, "").replace(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/g, "").trim().toLowerCase();
+            if (!s1 && !s2) return { similar: true, reason: "ไม่มีชื่อกิจกรรมทั้งคู่", sim: 100, maxLen: 0 };
+            if (!s1 || !s2) return { similar: false, sim: 0, maxLen: 0 };
+            if (s1 === s2) return { similar: true, reason: "ชื่อกิจกรรมเหมือนกันเป๊ะ", sim: 100, maxLen: s1.length };
+            if (s1.includes(s2) || s2.includes(s1)) return { similar: true, reason: "ข้อความซ่อนอยู่ในกันและกัน", sim: 90, maxLen: Math.min(s1.length, s2.length) };
+            let maxLen = 0;
+            for (let x = 0; x < s1.length; x++) {
+                for (let y = x + 1; y <= s1.length; y++) { let sub = s1.substring(x, y); if (s2.includes(sub) && sub.length > maxLen) maxLen = sub.length; }
+            }
+            let minL = Math.min(s1.length, s2.length); let score = minL > 0 ? Math.round((maxLen / minL) * 100) : 0;
+            if (maxLen >= 5 && score >= 35) return { similar: true, reason: "มีกลุ่มคำศัพท์แฝงตรงกัน", sim: score, maxLen: maxLen };
+            return { similar: false, sim: 0, maxLen: maxLen };
+        }
+
+        function buildCard(sRec, type, borderClass) {
+            let imgBtns = '';
+            if(sRec.img1 && sRec.img1 !== "-") imgBtns += `<a href="${sRec.img1}" target="_blank" class="flex-1 block text-center bg-green-50 text-green-700 border border-green-200 py-1.5 rounded text-xs hover:bg-green-100 font-bold shadow-sm transition"><i class="fas fa-image"></i> ภาพ/ไฟล์ 1</a>`;
+            if(sRec.img2 && sRec.img2 !== "-") imgBtns += `<a href="${sRec.img2}" target="_blank" class="flex-1 block text-center bg-green-50 text-green-700 border border-green-200 py-1.5 rounded text-xs hover:bg-green-100 font-bold shadow-sm transition"><i class="fas fa-image"></i> ภาพ/ไฟล์ 2</a>`;
+            return `
+            <div class="bg-white p-4 rounded ${borderClass} relative shadow-sm flex flex-col h-full hover:shadow-md transition-shadow">
+                <div class="absolute top-2 right-2">
+                    <label class="flex items-center space-x-2 cursor-pointer bg-red-100 text-red-800 px-3 py-1.5 rounded-lg shadow-sm hover:bg-red-200 transition border border-red-200">
+                        <input type="checkbox" class="duplicate-cb w-5 h-5 accent-red-600 cursor-pointer rounded" value="${sRec.row}">
+                        <span class="text-sm font-bold">เลือกลบแถว ${sRec.row} ทิ้ง</span>
+                    </label>
+                </div>
+                <p class="text-base font-bold text-blue-800 mb-1 mt-8 line-clamp-2" title="${sRec.subject}">${sRec.subject}</p>
+                <p class="text-xs text-gray-600 mb-1"><i class="fas fa-map-marker-alt text-gray-400 w-4"></i> ${sRec.tambon} ${sRec.moo}</p>
+                <p class="text-xs text-gray-600 mb-2"><i class="fas fa-calendar-alt text-gray-400 w-4"></i> <b>วันที่ดำเนินการ:</b> ${sRec.rawDate || '-'}</p>
+                <div class="bg-gray-50 p-2.5 rounded text-xs text-gray-700 mb-3 space-y-1.5 border border-gray-100 flex-grow">
+                    <p><b>สถานที่:</b> ${sRec.location || '-'}</p>
+                    <p class="line-clamp-2" title="${sRec.details || ''}"><b>รายละเอียด:</b> ${sRec.details || '-'}</p>
+                </div>
+                <div class="flex gap-2 mt-auto pt-2 border-t border-gray-100">
+                    <button type="button" onclick="openEditModal('${type}', ${sRec.row})" class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded text-xs font-bold transition"><i class="fas fa-edit mr-1"></i> แก้ไข</button>
+                    ${imgBtns}
+                </div>
+                <button type="button" onclick="confirmDeleteDuplicate('${type}', ${sRec.row})" class="mt-3 w-full bg-red-500 hover:bg-red-600 text-white text-sm py-2 rounded transition font-bold shadow-sm"><i class="fas fa-trash mr-1"></i> ลบรายการนี้ทิ้ง</button>
+            </div>`;
+        }
+
+        async function fetchIgnoredDuplicates() {
+            try {
+                const res = await fetchPostJSON('getIgnoredDuplicatesGlobal');
+                if(res.status === 'success') {
+                    localStorage.setItem('ignoredDuplicates', JSON.stringify(res.data));
+                }
+            } catch(e) {}
+        }
+        
+        async function scanDuplicates() {
+            if(!currentAdmin) return;
+            const type = document.getElementById('admin_type').value; const tambon = document.getElementById('admin_tambon').value;
+            const month = document.getElementById('admin_month').value; const moo = document.getElementById('admin_moo').value; 
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            document.getElementById('loadingText').innerText = 'กำลังวิเคราะห์หาข้อมูลซ้ำซ้อน...';
+            try {
+                await fetchIgnoredDuplicates(); // อัปเดตรายการละเว้นจาก Cloud
+                const data = await fetchPostJSON('getAdminData', { type: type, tambon: tambon, month: month, moo: moo, scanAll: true });
+                const records = data.records || []; let suspects = []; let ignored = JSON.parse(localStorage.getItem('ignoredDuplicates') || '[]');
+                for(let i=0; i<records.length; i++) {
+                    for(let j=i+1; j<records.length; j++) {
+                        let rec1 = records[i]; let rec2 = records[j];
+                        let t1 = String(rec1.tambon).replace(/\s/g, ''); let t2 = String(rec2.tambon).replace(/\s/g, '');
+                        let m1 = String(rec1.moo).replace(/หมู่ที่|หมู่|บ้าน|\s|-/g, ''); let m2 = String(rec2.moo).replace(/หมู่ที่|หมู่|บ้าน|\s|-/g, '');
+                        if(t1 === t2 && m1 === m2) {
+                            let d1 = parseDateRobust(rec1.rawDate); let d2 = parseDateRobust(rec2.rawDate); let isDateMatch = false;
+                            if (String(rec1.rawDate).trim() === String(rec2.rawDate).trim() && String(rec1.rawDate).trim().length > 3) isDateMatch = true;
+                            else if (!isNaN(d1) && !isNaN(d2)) { let diff = Math.abs(d1 - d2) / (1000 * 60 * 60 * 24); if (diff === 0) isDateMatch = true; }
+                            if (isDateMatch) {
+                                let simResult = checkHighlySimilar(rec1.subject, rec2.subject);
+                                let pushIt = false; let finalReason = "";
+                                if (simResult.similar) { pushIt = true; finalReason = simResult.reason + " + วันที่ดำเนินการเดียวกัน"; } 
+                                else if (simResult.maxLen >= 4 || simResult.sim >= 20) { pushIt = true; finalReason = "มีคำคล้ายบางส่วน + วันที่ดำเนินการเดียวกัน"; }
+                                if(pushIt) {
+                                    let rawStr1 = `${type}_${rec1.tambon}_${rec1.moo}_${rec1.rawDate}_${rec1.subject}`;
+                                    let rawStr2 = `${type}_${rec2.tambon}_${rec2.moo}_${rec2.rawDate}_${rec2.subject}`;
+                                    let pairStr = rawStr1 < rawStr2 ? rawStr1 + "|||" + rawStr2 : rawStr2 + "|||" + rawStr1;
+                                    let pairId = btoa(unescape(encodeURIComponent(pairStr)));
+                                    if (!ignored.includes(pairId)) suspects.push({ rec1, rec2, sim: simResult.sim, reason: finalReason, pairId: pairId });
+                                }
+                            }
+                        }
+                    }
+                }
+                let uniqueSuspects = []; let seen = new Set();
+                suspects.forEach(s => { let key = Math.min(s.rec1.row, s.rec2.row) + "_" + Math.max(s.rec1.row, s.rec2.row); if(!seen.has(key)) { seen.add(key); uniqueSuspects.push(s); } });
+                uniqueSuspects.sort((a, b) => b.sim - a.sim);
+                renderDuplicateModal(uniqueSuspects, type);
+            } catch(e) { Swal.fire('เกิดข้อผิดพลาด', e.message, 'error'); } 
+            finally { document.getElementById('loadingOverlay').style.display = 'none'; document.getElementById('loadingText').innerText = 'กำลังดำเนินการ...'; }
+        }
+
+        function renderDuplicateModal(suspects, type) {
+            const container = document.getElementById('duplicateResults');
+            if(suspects.length === 0) {
+                container.innerHTML = '<div class="p-8 text-center text-green-600 font-bold bg-green-50 rounded-lg"><i class="fas fa-check-circle text-5xl mb-3"></i><br>ยอดเยี่ยม! ไม่พบข้อมูลที่สงสัยว่ารายงานซ้ำซ้อนในระบบครับ</div>';
+                document.getElementById('duplicateModalFooter').innerHTML = `<button type="button" onclick="document.getElementById('duplicateModal').style.display='none'" class="bg-gray-800 hover:bg-gray-900 text-white px-6 py-2.5 rounded shadow ml-auto">ปิดหน้าต่าง</button>`;
+            } else {
+                container.innerHTML = suspects.map((s, index) => {
+                    let borderClass1 = s.rec1.row > s.rec2.row ? 'border-red-400 border-2' : 'border-gray-300';
+                    let borderClass2 = s.rec2.row > s.rec1.row ? 'border-red-400 border-2' : 'border-gray-300';
+                    return `
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4 shadow-sm" id="suspect_card_${index}">
+                        <div class="flex justify-between items-center mb-3 border-b border-red-200 pb-2 flex-wrap gap-2">
+                            <h4 class="font-bold text-red-700"><i class="fas fa-exclamation-triangle"></i> คู่ต้องสงสัยซ้ำซ้อน #${index + 1}</h4>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs bg-red-200 text-red-800 px-3 py-1 rounded-full font-bold">${s.reason} (ความเหมือน ${s.sim}%)</span>
+                                <button type="button" onclick="ignoreDuplicatePairCloud('${s.pairId}', 'suspect_card_${index}')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-lg shadow-sm transition font-bold"><i class="fas fa-check-circle mr-1"></i> ยืนยันว่าไม่ซ้ำ</button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            ${buildCard(s.rec1, type, borderClass1)}
+                            ${buildCard(s.rec2, type, borderClass2)}
+                        </div>
+                    </div>`;
+                }).join('');
+                document.getElementById('duplicateModalFooter').innerHTML = `
+                    <button type="button" onclick="deleteSelectedDuplicates('${type}')" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded shadow-lg font-bold text-base transition transform hover:-translate-y-0.5"><i class="fas fa-trash-alt mr-2"></i>ยืนยันลบรายการที่ติ๊กเลือก</button>
+                    <button type="button" onclick="document.getElementById('duplicateModal').style.display='none'" class="bg-gray-800 hover:bg-gray-900 text-white px-6 py-2.5 rounded shadow ml-auto">ปิดหน้าต่าง</button>
+                `;
+            }
+            document.getElementById('duplicateModal').style.display = 'block';
+        }
+
+        async function ignoreDuplicatePairCloud(pairId, elementId) {
+            let ignored = JSON.parse(localStorage.getItem('ignoredDuplicates') || '[]');
+            if (!ignored.includes(pairId)) { 
+                ignored.push(pairId); 
+                localStorage.setItem('ignoredDuplicates', JSON.stringify(ignored)); 
+                fetchPostJSON('ignoreDuplicateGlobal', {pairId: pairId}); // ส่งขึ้น Cloud แบบ Background
+            }
+            const el = document.getElementById(elementId); if (el) { el.remove(); }
+            const container = document.getElementById('duplicateResults');
+            if (container.children.length === 0) {
+                container.innerHTML = '<div class="p-8 text-center text-green-600 font-bold bg-green-50 rounded-lg"><i class="fas fa-check-circle text-5xl mb-3"></i><br>ยอดเยี่ยม! ไม่พบข้อมูลที่สงสัยว่ารายงานซ้ำซ้อนในระบบครับ<br><span class="text-sm font-normal text-green-700">(หรือตรวจสอบและยืนยันครบหมดแล้ว)</span></div>';
+            }
+            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'บันทึกการตรวจสอบเรียบร้อย', showConfirmButton: false, timer: 1500 });
+        }
+
+        function resetIgnoredDuplicates() {
+            localStorage.removeItem('ignoredDuplicates');
+            Swal.fire({ title: 'รีเซ็ตสำเร็จ', text: 'ล้างความจำบนเครื่องนี้แล้ว (สำหรับการรีเซ็ตบนคลาวด์โปรดแจ้งนักพัฒนา)', icon: 'success', timer: 3000 });
+        }
+
+        async function deleteSelectedDuplicates(type) {
+            const checkboxes = document.querySelectorAll('.duplicate-cb:checked');
+            if(checkboxes.length === 0) return Swal.fire('โปรดเลือกรายการ', 'กรุณาติ๊กช่อง "เลือกลบแถว..." อย่างน้อย 1 รายการก่อนกดลบครับ', 'warning');
+            const rowsToDelete = Array.from(new Set(Array.from(checkboxes).map(cb => parseInt(cb.value)))).sort((a, b) => b - a);
+
+            const confirm = await Swal.fire({ title: 'ยืนยันการลบรายการที่เลือก?', text: `ข้อมูลจำนวน ${rowsToDelete.length} แถวจะถูกลบและย้ายไปถังขยะ`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'ใช่, ลบทิ้งเลย' });
+            if(!confirm.isConfirmed) return;
+
+            document.getElementById('duplicateModal').style.display='none'; 
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            document.getElementById('loadingText').innerText = `กำลังลบข้อมูล ${rowsToDelete.length} รายการ...`;
+
+            let successCount = 0; let failCount = 0;
+            try {
+                for(let row of rowsToDelete) {
+                    try {
+                        const res = await fetchPostJSON('deleteData', { type: type, row: row, adminName: currentAdmin.name });
+                        if(res.status === 'success') successCount++; else failCount++;
+                    } catch(err) { failCount++; }
+                }
+                if(type === 'kormor') cachedKormorData = []; if(type === 'pranee') cachedPraneeData = [];
+                await prefetchData(); loadAdminData(); 
+
+                await Swal.fire({
+                    title: 'สรุปผลการลบข้อมูล', html: `ลบสำเร็จ: <span style="color: green; font-weight: bold;">${successCount}</span> รายการ<br>ลบไม่สำเร็จ: <span style="color: red; font-weight: bold;">${failCount}</span> รายการ`,
+                    icon: failCount === 0 ? 'success' : 'warning', confirmButtonText: 'ตกลง'
+                });
+                scanDuplicates();
+            } catch(e) { Swal.fire('ข้อผิดพลาด', `เกิดปัญหาขณะลบข้อมูล: ${e.message}`, 'error'); } 
+            finally { document.getElementById('loadingOverlay').style.display = 'none'; }
+        }
+
+        async function confirmDeleteDuplicate(type, row) { deleteRecord(type, row, true); }
+
+        async function deleteRecord(type, row, fromScanner = false, fromTypo = false) {
+            const confirm = await Swal.fire({ title: 'ยืนยันการลบ?', text: "ข้อมูลจะถูกย้ายไปถังขยะและส่งผลต่อ Dashboard ทันที", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'ใช่, ลบเลย' });
+            if(!confirm.isConfirmed) return;
+            
+            if(fromScanner) document.getElementById('duplicateModal').style.display='none';
+            document.getElementById('loadingOverlay').style.display = 'flex'; document.getElementById('loadingText').innerText = `กำลังลบข้อมูล...`;
+            try {
+                const res = await fetchPostJSON('deleteData', { type: type, row: row, adminName: currentAdmin.name });
+                if(res.status === 'success') {
+                    if(type==='kormor') cachedKormorData = []; if(type==='pranee') cachedPraneeData = [];
+                    await prefetchData(); loadAdminData();
+                    Swal.fire({ title: 'ลบสำเร็จ', text: 'ข้อมูลถูกย้ายไปถังขยะเรียบร้อย', icon: 'success', timer: 2000, showConfirmButton: false });
+                    if(fromScanner) setTimeout(() => scanDuplicates(), 2000);
+                    if(fromTypo) setTimeout(() => runTypoScan(), 2000); 
+                } else throw new Error(res.message);
+            } catch(e) { Swal.fire('ข้อผิดพลาด', `ลบไม่สำเร็จ: ${e.message}`, 'error'); } 
+            finally { document.getElementById('loadingOverlay').style.display = 'none'; }
+        }
+
+        // ฟังก์ชันช่วยอัปเดต Dropdown หัวข้อย่อยในหน้าแก้ไข
+        window.updateEditSubDomain = function(colIndex) {
+            const mVal = document.getElementById('editMainDomain_' + colIndex).value;
+            const sSel = document.getElementById('editSubDomain_' + colIndex);
+            sSel.innerHTML = '<option value="">-- เลือกหัวข้อย่อย --</option>';
+            if(mVal && domainData[mVal]) {
+                domainData[mVal].forEach(s => {
+                    sSel.add(new Option(s, s));
+                });
+            }
+        };
+
+        async function openEditModal(type, row) {
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            try {
+                const data = await fetchPostJSON('getSingleData', { type: type, row: row });
+                if(data.status === 'success') {
+                    document.getElementById('edit_type').value = type; document.getElementById('edit_row').value = row;
+                    const container = document.getElementById('editFormFields'); container.innerHTML = ''; let fileLinksHtml = ''; 
+
+                    data.headers.forEach((header, index) => {
+                        let val = data.values[index] || ''; if(header === 'Timestamp' || header.includes('Hash')) return; 
+                        const isUrl = typeof val === 'string' && val.startsWith('http');
+                        if(header.includes('รูป') || header.includes('ไฟล์') || isUrl) {
+                            if(isUrl) {
+                                let icon = (header.includes('รูป') || val.includes('image') || val.includes('jpg') || val.includes('png')) ? 'fa-image text-green-600' : 'fa-file-alt text-red-600';
+                                fileLinksHtml += `<a href="${val}" target="_blank" class="bg-gray-50 border border-gray-300 px-3 py-2 rounded shadow-sm text-sm hover:bg-gray-100 flex items-center gap-2"><i class="fas ${icon}"></i> ดู${header}</a>`;
+                            }
+                            return; 
+                        }
+                        if((header.includes('วัน') || header.includes('เดือน')) && val && val.length > 10) { try { val = new Date(parseDateRobust(val)).toISOString().split('T')[0]; } catch(e){} }
+                        
+                        let html = '';
+                        
+                        // สร้าง Dropdown ให้ช่องที่แก้ไขง่ายขึ้น โดยอ้างอิงชื่อคอลัมน์แบบยืดหยุ่นด้วย includes
+                        if(header.includes('ประเภทหมู่บ้าน')) {
+                            html += `<div><label class="block text-sm font-bold mb-1">${header}</label>`;
+                            html += `<select name="col_${index}" class="input-field">
+                                <option value="หมู่บ้าน กม." ${val==='หมู่บ้าน กม.'?'selected':''}>หมู่บ้าน กม.</option>
+                                <option value="หมู่บ้าน อพป." ${val==='หมู่บ้าน อพป.'?'selected':''}>หมู่บ้าน อพป.</option>
+                            </select></div>`;
+                        } else if(header === 'สถานะ' || header.includes('สถานะการ')) {
+                            html += `<div><label class="block text-sm font-bold mb-1">${header}</label>`;
+                            html += `<select name="col_${index}" class="input-field">
+                                <option value="ดำเนินการแล้วเสร็จ" ${val==='ดำเนินการแล้วเสร็จ'?'selected':''}>ดำเนินการแล้วเสร็จ</option>
+                                <option value="ยังดำเนินการไม่แล้วเสร็จ" ${val==='ยังดำเนินการไม่แล้วเสร็จ'?'selected':''}>ยังดำเนินการไม่แล้วเสร็จ</option>
+                            </select></div>`;
+                        } else if(header === 'ด้านงาน' || header === 'หัวข้อการปฏิบัติงาน' || header.includes('ด้านงาน') || header.includes('หัวข้อ') || header === 'Domain' || header === 'หัวข้อย่อย') {
+                            // พิเศษสำหรับ "ด้านงาน" หรือ "หัวข้อ" ต้องดึง Main Domain ออกมาก่อน
+                            let foundMainDomain = "";
+                            for (let m in domainData) {
+                                if (domainData[m].includes(val)) {
+                                    foundMainDomain = m;
+                                    break;
+                                }
+                            }
+                            
+                            html += `<div><label class="block text-sm font-bold mb-1 text-blue-700">ด้านการปฏิบัติงานหลัก (หมวดหมู่)</label>
+                                    <select id="editMainDomain_${index}" onchange="updateEditSubDomain(${index})" class="input-field mb-4 bg-blue-50 border-blue-300">
+                                        <option value="">-- เลือกด้านงานหลัก --</option>`;
+                            for (let m in domainData) {
+                                html += `<option value="${m}" ${foundMainDomain === m ? 'selected' : ''}>${m}</option>`;
+                            }
+                            html += `</select></div>`;
+                            
+                            html += `<div><label class="block text-sm font-bold mb-1">หัวข้อการปฏิบัติงาน</label>
+                                     <select name="col_${index}" id="editSubDomain_${index}" class="input-field">
+                                        <option value="">-- เลือกหัวข้อย่อย --</option>`;
+                            if (foundMainDomain && domainData[foundMainDomain]) {
+                                domainData[foundMainDomain].forEach(s => {
+                                    html += `<option value="${s}" ${val === s ? 'selected' : ''}>${s}</option>`;
+                                });
+                            } else if (val) {
+                                html += `<option value="${val}" selected>${val}</option>`;
+                            }
+                            html += `</select></div>`;
+                            
+                        } else if(header.includes('คณะทำงาน')) {
+                            html += `<div><label class="block text-sm font-bold mb-1">${header}</label>`;
+                            const teams = ["คณะทำงานด้านอำนวยการ (กม.)", "คณะทำงานด้านการปกครองฯ (กม.)", "คณะทำงานด้านแผนพัฒนาหมู่บ้าน (กม.)", "คณะทำงานด้านส่งเสริมเศรษฐกิจ (กม.)", "คณะทำงานด้านสังคม สิ่งแวดล้อมฯ (กม.)", "คณะทำงานด้านการศึกษา ศาสนาฯ (กม.)", "อื่นๆ"];
+                            html += `<select name="col_${index}" class="input-field">`;
+                            teams.forEach(t => html += `<option value="${t}" ${val===t?'selected':''}>${t}</option>`);
+                            html += `</select></div>`;
+                        } else if(header.includes('ตำแหน่ง')) {
+                            html += `<div><label class="block text-sm font-bold mb-1">${header}</label>`;
+                            const positions = ["กำนัน", "ผู้ใหญ่บ้าน", "แพทย์ประจำตำบล", "สารวัตรกำนัน", "ผู้ช่วยผู้ใหญ่บ้านฝ่ายปกครอง", "ผู้ช่วยผู้ใหญ่บ้านฝ่ายรักษาความสงบ", "กรรมการหมู่บ้าน (กม.)"];
+                            html += `<select name="col_${index}" class="input-field">`;
+                            positions.forEach(p => html += `<option value="${p}" ${val===p?'selected':''}>${p}</option>`);
+                            html += `</select></div>`;
+                        } else if(header.includes('เงื่อนไข')) {
+                            html += `<div><label class="block text-sm font-bold mb-1">${header}</label>`;
+                            html += `<select name="col_${index}" class="input-field">
+                                <option value="คู่กรณีมีภูมิลำเนาในหมู่บ้าน" ${val==='คู่กรณีมีภูมิลำเนาในหมู่บ้าน'?'selected':''}>คู่กรณีมีภูมิลำเนาในหมู่บ้าน</option>
+                                <option value="เกิดเหตุในหมู่บ้าน" ${val==='เกิดเหตุในหมู่บ้าน'?'selected':''}>เกิดเหตุในหมู่บ้าน</option>
+                            </select></div>`;
+                        } else if(header.includes('ประเภทคดี')) {
+                            html += `<div><label class="block text-sm font-bold mb-1">${header}</label>`;
+                            html += `<select name="col_${index}" class="input-field">
+                                <option value="คดีแพ่ง" ${val==='คดีแพ่ง'?'selected':''}>คดีแพ่ง</option>
+                                <option value="คดีอาญา" ${val==='คดีอาญา'?'selected':''}>คดีอาญา</option>
+                            </select></div>`;
+                        } else if(header.includes('แล้วเสร็จเดือน') || header === 'แล้วเสร็จเดือน') {
+                            html += `<div><label class="block text-sm font-bold mb-1">${header}</label>`;
+                            const months = ["ตุลาคม", "พฤศจิกายน", "ธันวาคม", "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน"];
+                            html += `<select name="col_${index}" class="input-field">`;
+                            months.forEach(m => html += `<option value="${m}" ${val===m?'selected':''}>${m}</option>`);
+                            html += `</select></div>`;
+                        } else if(header.includes('ผลการประนีประนอม')) {
+                            html += `<div><label class="block text-sm font-bold mb-1">${header}</label>`;
+                            const results = ["ตกลงกันได้-ไม่ทำสัญญา", "ตกลงกันได้-ทำสัญญา", "ตกลงกันไม่ได้-อำเภอ", "ตกลงกันไม่ได้-ยุติธรรม"];
+                            html += `<select name="col_${index}" class="input-field">`;
+                            results.forEach(r => html += `<option value="${r}" ${val===r?'selected':''}>${r}</option>`);
+                            html += `</select></div>`;
+                        } else if(header.includes('รายละเอียด') || header.includes('เรื่อง') || header.includes('หมายเหตุ')) {
+                            html += `<div><label class="block text-sm font-bold mb-1">${header}</label>`;
+                            html += `<textarea name="col_${index}" class="input-field" rows="2">${val}</textarea></div>`;
+                        } else if(header.includes('วัน')) {
+                            html += `<div><label class="block text-sm font-bold mb-1">${header}</label>`;
+                            html += `<input type="date" name="col_${index}" value="${val}" class="input-field"></div>`;
+                        } else {
+                            html += `<div><label class="block text-sm font-bold mb-1">${header}</label>`;
+                            html += `<input type="text" name="col_${index}" value="${val}" class="input-field"></div>`;
+                        }
+                        
+                        container.innerHTML += html;
+                    });
+                    if (fileLinksHtml !== '') container.innerHTML += `<div class="md:col-span-2 mt-2 pt-4 border-t border-dashed"><label class="block text-sm font-bold mb-2">เอกสาร/ภาพแนบเดิม (แก้ไขไฟล์ใหม่ผ่านระบบไม่ได้)</label><div class="flex flex-wrap gap-2">${fileLinksHtml}</div></div>`;
+                    document.getElementById('editModal').style.display = 'block';
+                }
+            } catch(e) { Swal.fire('Error', e.message, 'error'); } finally { document.getElementById('loadingOverlay').style.display = 'none'; }
+        }
+
+        function closeEditModal() { document.getElementById('editModal').style.display = 'none'; }
+
+        async function submitAdminEdit(e) {
+            e.preventDefault(); document.getElementById('loadingOverlay').style.display = 'flex';
+            try {
+                const formData = new FormData(e.target); const updates = {};
+                formData.forEach((value, key) => { if(key.startsWith('col_')) updates[key.replace('col_', '')] = value; });
+                const result = await fetchPostJSON('updateData', { type: formData.get('type'), row: formData.get('row'), updates: updates });
+                if(result.status === 'success') {
+                    Swal.fire('สำเร็จ', 'อัปเดตข้อมูลเรียบร้อย', 'success'); closeEditModal();
+                    if(formData.get('type') === 'kormor') cachedKormorData = []; if(formData.get('type') === 'pranee') cachedPraneeData = [];
+                    prefetchData(); loadAdminData();
+                } else throw new Error(result.message);
+            } catch(err) { Swal.fire('ข้อผิดพลาด', err.message, 'error'); } finally { document.getElementById('loadingOverlay').style.display = 'none'; }
+        }
+
+        async function exportExcel() {
+            const type = document.getElementById('exportType').value; const month = document.getElementById('exportMonth').value; const tambon = currentAdmin.tambon;
+            document.getElementById('loadingOverlay').style.display = 'flex'; document.getElementById('loadingText').innerText = 'กำลังสร้างไฟล์ Excel...';
+            try {
+                const result = await fetchPostJSON('exportExcel', { type: type, month: month, tambon: tambon });
+                if(result.status === 'success') { Swal.fire({ title: 'สร้างไฟล์สำเร็จ!', text: 'ระบบกำลังดาวน์โหลดไฟล์...', icon: 'success', timer: 2000, showConfirmButton: false }); window.open(result.url, '_blank'); } 
+                else throw new Error(result.message);
+            } catch(e) { Swal.fire('ข้อผิดพลาด', e.message, 'error'); } finally { document.getElementById('loadingOverlay').style.display = 'none'; document.getElementById('loadingText').innerText = 'กำลังดำเนินการ...'; }
+        }
+
+        function renderChart(id, type, chartData, label) {
+            const ctx = document.getElementById(id).getContext('2d'); if(chartInstances[id]) chartInstances[id].destroy();
+            const colors = ['#16a34a', '#2563eb', '#facc15', '#f87171', '#a855f7', '#06b6d4', '#ec4899', '#f97316', '#14b8a6', '#6366f1'];
+            chartInstances[id] = new Chart(ctx, { type: type, data: { labels: chartData.labels, datasets: [{ label: label, data: chartData.data, backgroundColor: colors }] }, options: { responsive: true, maintainAspectRatio: false, indexAxis: type === 'bar' ? 'y' : 'x' } });
+        }
+
+        function renderTable(id, rows, keys) {
+            const tbody = document.getElementById(id); if(!rows.length) { tbody.innerHTML = `<tr><td colspan="${keys.length}" class="p-4 text-center text-gray-400">ยังไม่มีข้อมูล</td></tr>`; return; }
+            tbody.innerHTML = rows.map(r => `<tr class="border-b hover:bg-gray-50">${keys.map(k => `<td class="p-4 align-top text-sm">${r[k]}</td>`).join('')}</tr>`).join('');
+        }
+
+        // ================= ระบบกวาดคัดกรองข้อมูลด้วย AI =================
+        let isSweeping = false;
+        
+        async function startAiSweep() {
+            if(!currentAdmin || currentAdmin.role !== 'Master Admin') return;
+            const month = document.getElementById('sweep_month').value;
+            const tambon = document.getElementById('sweep_tambon').value;
+            const moo = document.getElementById('sweep_moo').value;
+            
+            const confirm = await Swal.fire({ 
+                title: 'เริ่มกวาดข้อมูลด้วย AI?', 
+                text: 'กระบวนการนี้อาจใช้เวลานาน (ประมาณ 2-3 วินาทีต่อแถว) ห้ามปิดหรือรีเฟรชหน้าต่างนี้จนกว่าจะเสร็จสิ้น', 
+                icon: 'warning', 
+                showCancelButton: true, 
+                confirmButtonText: 'เริ่มสแกนเลย' 
+            });
+            
+            if(!confirm.isConfirmed) return;
+
+            document.getElementById('btnStartSweep').classList.add('hidden');
+            document.getElementById('btnStopSweep').classList.remove('hidden');
+            document.getElementById('sweepProgressText').innerText = 'สถานะ: กำลังดึงข้อมูลจากระบบ...';
+            isSweeping = true;
+
+            try {
+                const data = await fetchPostJSON('getAdminData', { type: 'kormor', tambon: tambon, month: month, moo: moo, scanAll: true });
+                let records = data.records || [];
+                
+                records = records.filter(r => !(r.remark || "").includes('[AI ตรวจผ่าน]'));
+                records.sort((a, b) => b.row - a.row);
+
+                if(records.length === 0) {
+                    document.getElementById('sweepProgressText').innerText = 'สถานะ: เสร็จสิ้น (ไม่มีข้อมูลเก่าที่ต้องกวาดในฟิลเตอร์นี้)';
+                    document.getElementById('btnStartSweep').classList.remove('hidden');
+                    document.getElementById('btnStopSweep').classList.add('hidden');
+                    return;
+                }
+
+                const tbody = document.getElementById('tableSweepData');
+                tbody.innerHTML = '';
+                
+                let total = records.length;
+                let processed = 0;
+                let deleted = 0;
+                let updated = 0;
+
+                for(let i=0; i<total; i++) {
+                    if(!isSweeping) {
+                        document.getElementById('sweepProgressText').innerText = `สถานะ: หยุดชั่วคราวโดยผู้ใช้ (ตรวจไปแล้ว ${processed}/${total})`;
+                        break;
+                    }
+                    let r = records[i];
+                    
+                    let tr = document.createElement('tr');
+                    tr.id = `sweep_row_${r.row}`;
+                    tr.className = 'border-b hover:bg-gray-50 text-sm';
+                    tr.innerHTML = `
+                        <td class="p-2 text-center text-gray-500 font-bold">${r.row}</td>
+                        <td class="p-2"><b>${r.tambon}</b><br><span class="text-xs text-gray-500">${r.moo}</span></td>
+                        <td class="p-2 whitespace-normal break-words"><b>${r.subject}</b><br><span class="text-xs text-blue-600"><i class="fas fa-user"></i> ${r.reporter}</span></td>
+                        <td class="p-2 text-center text-xs font-bold text-orange-500 bg-orange-50" id="sweep_status_${r.row}"><i class="fas fa-spinner fa-spin mr-1"></i> กำลังวิเคราะห์...</td>
+                    `;
+                    tbody.prepend(tr);
+                    
+                    document.getElementById('sweepProgressText').innerText = `สถานะ: กำลังวิเคราะห์แถวที่ ${r.row} (${processed+1}/${total})`;
+                    document.getElementById('sweepProgressBar').style.width = `${Math.round(((processed+1)/total)*100)}%`;
+
+                    try {
+                        const res = await fetchPostJSON('actionAiSweepSingle', { row: r.row, adminName: currentAdmin.name });
+                        let statCell = document.getElementById(`sweep_status_${r.row}`);
+                        
+                        if(res.status === 'deleted') {
+                            statCell.className = "p-2 text-center text-xs font-bold text-red-600 bg-red-50";
+                            statCell.innerHTML = `<i class="fas fa-trash-alt mr-1"></i> ถูกลบทิ้ง<br><span class="text-[10px] font-normal leading-tight block mt-1">${res.reason}</span>`;
+                            deleted++;
+                        } else if(res.status === 'updated') {
+                            statCell.className = "p-2 text-center text-xs font-bold text-green-700 bg-green-50";
+                            statCell.innerHTML = `<i class="fas fa-check-circle mr-1"></i> ปรับแก้ข้อมูลสมบูรณ์`;
+                            updated++;
+                        } else if(res.status === 'skip') {
+                            statCell.className = "p-2 text-center text-xs text-gray-500";
+                            statCell.innerHTML = `<i class="fas fa-forward mr-1"></i> ข้าม (AI เคยตรวจแล้ว)`;
+                        } else {
+                            statCell.className = "p-2 text-center text-xs text-red-500";
+                            statCell.innerHTML = `Error: ${res.message}`;
+                        }
+                    } catch(err) {
+                        document.getElementById(`sweep_status_${r.row}`).className = "p-2 text-center text-xs text-red-500";
+                        document.getElementById(`sweep_status_${r.row}`).innerHTML = `Error: ${err.message}`;
+                    }
+                    processed++;
+                }
+                
+                if(isSweeping) {
+                    document.getElementById('sweepProgressText').innerText = `สถานะ: เสร็จสมบูรณ์ (ผ่านการวิเคราะห์ ${processed} | ลบทิ้ง ${deleted} | ปรับปรุง/แก้คำ/แก้ชื่อ ${updated})`;
+                    document.getElementById('sweepProgressBar').style.width = `100%`;
+                    document.getElementById('sweepProgressBar').classList.replace('bg-indigo-600', 'bg-green-500');
+                    Swal.fire('กวาดข้อมูลเสร็จสิ้น', `ลบทิ้งลงถังขยะ: <b>${deleted}</b> รายการ<br>ปรับปรุง/แก้คำ/แก้ชื่อ: <b>${updated}</b> รายการ`, 'success');
+                }
+            } catch(e) {
+                Swal.fire('ข้อผิดพลาด', e.message, 'error');
+            } finally {
+                isSweeping = false;
+                document.getElementById('btnStartSweep').classList.remove('hidden');
+                document.getElementById('btnStopSweep').classList.add('hidden');
+                cachedKormorData = []; // Clear cache
+                await prefetchData();
+                loadAdminData(); // Refresh main table
+            }
+        }
+        
+        function stopAiSweep() { 
+            isSweeping = false; 
+            document.getElementById('sweepProgressText').innerText = 'สถานะ: กำลังหยุดการทำงาน...';
+        }
+    </script>
+</body>
+</html>
