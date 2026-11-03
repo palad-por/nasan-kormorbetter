@@ -234,13 +234,13 @@
             <div class="card p-6 md:p-8 border-t-4 border-blue-500 max-w-5xl mx-auto">
                 <div class="mb-6 pb-4 border-b border-gray-100 flex justify-between items-center flex-wrap gap-4">
                     <div><h2 class="text-xl font-bold text-blue-800"><i class="fas fa-handshake mr-2"></i>บันทึกรายงานการไกล่เกลี่ย</h2></div>
-                    <a href="https://drive.google.com/drive/folders/1cqv-ov01h_S8TE2nbwUwIB5nVAg_g7QM?usp=drive_link" target="_blank" class="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg text-sm hover:bg-blue-200 transition shadow-sm"><i class="fas fa-download mr-1"></i> ดาวน์โหลดแบบฟอร์มการไกล่เกลี่ย</a>
+                    <a href="https://drive.google.com/file/d/18VNNKXOl0dKNF484Pz8v71_m_F1A6ekT/view?usp=drivesdk" target="_blank" class="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg text-sm hover:bg-blue-200 transition shadow-sm"><i class="fas fa-download mr-1"></i> ดาวน์โหลดแบบฟอร์มการไกล่เกลี่ย</a>
                 </div>
                 <form id="formPranee" onsubmit="handlePraneeSubmit(event)" class="space-y-6">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium mb-1">ปีงบประมาณ <span class="text-red-500">*</span></label>
-                            <select name="fiscal_year" required class="input-field"><option value="2569">2569</option><option value="2570">2570</option><option value="2571">2571</option></select>
+                            <select name="fiscal_year" id="fiscal_year" required class="input-field"></select>
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-1">จำนวน กม. ที่ไกล่เกลี่ย <span class="text-red-500">*</span></label>
@@ -633,6 +633,10 @@
                         - หาก <b>ผ่าน:</b> จะเกลาคำ จัดรูปแบบสถานที่ และ <b>แก้ไขชื่อผู้รายงานให้ตรงกับฐานข้อมูลบุคลากร</b> อัตโนมัติ
                     </div>
                     <div class="flex flex-wrap gap-2 mb-4 bg-white p-3 rounded border border-gray-200 shadow-sm">
+                        <select id="sweep_type" class="input-field py-1 text-sm w-auto">
+                            <option value="kormor">ตาราง: ผลงาน</option>
+                            <option value="pranee">ตาราง: ไกล่เกลี่ย</option>
+                        </select>
                         <select id="sweep_month" class="input-field py-1 text-sm w-auto"><option value="ALL">ทุกรอบเดือน</option></select>
                         <select id="sweep_tambon" onchange="updateMooList('sweep_tambon', 'sweep_moo', true)" class="input-field py-1 text-sm w-auto"><option value="ALL">ทุกตำบล</option></select>
                         <select id="sweep_moo" class="input-field py-1 text-sm w-auto disabled:bg-gray-100" disabled><option value="ALL">ทุกหมู่บ้าน</option></select>
@@ -684,7 +688,7 @@
 
     <script>
         // สำคัญมาก: คุณต้องนำ URL ที่ได้จากการกด Deploy ระบบใหม่ล่าสุด มาวางแทนที่ตรงนี้
-        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyIsF9yT1VBWvdTK2VuEveQfILKe1c8nnpwWYXE0pf0CBkLDGti6FZ8BwN22gXIM4zS/exec";
+        const WEB_APP_URL = "https://script.google.com/macros/s/ใส่_รหัส_URL_ใหม่ของคุณตรงนี้/exec";
 
         const villageData = {
             "ตำบลพรุพี": ["หมู่ที่ 1 บ้านตลาดพรุพี", "หมู่ที่ 2 บ้านทุ่งทือ", "หมู่ที่ 3 บ้านอินทนิลงาม", "หมู่ที่ 4 บ้านคลองหินแท่น", "หมู่ที่ 5 บ้านห้วยล่วง", "หมู่ที่ 6 บ้านห้วยตอ", "หมู่ที่ 7 บ้านช่องช้าง"],
@@ -713,9 +717,10 @@
         let lastUpdateKormor = ""; let lastUpdatePranee = "";
 
         window.onload = function() {
-            initDropdowns(); initMonthFilter('k_filter_month'); initMonthFilter('p_filter_month'); 
+            initDropdowns(); 
             initMonthFilter('exportMonth'); initMonthFilter('admin_month'); initMonthFilter('reporter_month');
             initMonthFilter('typo_month'); initMonthFilter('log_month'); initMonthFilter('sweep_month');
+            initFiscalYear();
             
             const mSel = document.getElementById('mainDomain'); for(let d in domainData) mSel.add(new Option(d, d));
             const thaiMonths = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
@@ -723,6 +728,16 @@
             if(finishMonthSelect) finishMonthSelect.value = thaiMonths[new Date().getMonth()];
             setMaxDateForInputs(); prefetchData();
         };
+
+        function initFiscalYear() {
+            const fySelect = document.getElementById('fiscal_year');
+            if(!fySelect) return;
+            fySelect.innerHTML = '';
+            const today = new Date();
+            let fy = today.getFullYear() + 543;
+            if (today.getMonth() >= 9) fy += 1; // 1 ตุลาคม เป็นต้นไป ขึ้นปีงบประมาณใหม่
+            for(let i=0; i<3; i++) fySelect.add(new Option(fy + i, fy + i));
+        }
 
         function setMaxDateForInputs() {
             try {
@@ -749,12 +764,49 @@
             try { return JSON.parse(text); } catch(err) { throw new Error("ข้อมูลตอบกลับผิดพลาด: " + text); }
         }
 
+        function populateDynamicMonthFilter(selectId, dataArray) {
+            const sel = document.getElementById(selectId);
+            if(!sel) return;
+            const currentVal = sel.value;
+            sel.innerHTML = '<option value="ALL">ทั้งหมด (ทุกรอบเดือน)</option>';
+            
+            let cycles = new Set();
+            dataArray.forEach(d => {
+                let dateVal = d.date || d.rawDate;
+                if(!dateVal || dateVal === '-') return;
+                let obj = new Date(parseDateRobust(dateVal));
+                if(isNaN(obj.getTime())) return;
+                let y = obj.getFullYear(); let m = obj.getMonth() + 1;
+                if(obj.getDate() >= 21) { m++; if(m > 12) { m = 1; y++; } }
+                cycles.add(`${y}-${m.toString().padStart(2,'0')}`);
+            });
+            
+            let sortedCycles = Array.from(cycles).sort((a,b) => b.localeCompare(a));
+            const thaiMonthsShort = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+            const thaiMonthsFull = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+            
+            sortedCycles.forEach(c => {
+                const [yStr, mStr] = c.split('-');
+                let y = parseInt(yStr); let m = parseInt(mStr);
+                let prevM = m - 1; let prevY = y;
+                if(prevM === 0) { prevM = 12; prevY--; }
+                sel.add(new Option(`รอบ 21 ${thaiMonthsShort[prevM-1]} ${prevY+543} - 20 ${thaiMonthsFull[m-1]} ${y+543}`, c));
+            });
+
+            if(currentVal && currentVal !== 'ALL' && cycles.has(currentVal)) {
+                sel.value = currentVal;
+            } else if (sortedCycles.length > 0 && currentVal !== 'ALL') {
+                sel.value = sortedCycles[0]; 
+            }
+        }
+
         async function prefetchData() {
             try {
                 const kData = await fetchPostJSON('getDashboardKormor'); 
                 if(kData.status === 'disabled') { showDashboardMaintenance(); return; }
                 if(kData.status === 'success') {
                     cachedKormorData = kData.all_data || [];
+                    populateDynamicMonthFilter('k_filter_month', cachedKormorData);
                     let now = new Date();
                     lastUpdateKormor = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth()+1).toString().padStart(2, '0')}/${now.getFullYear()+543} เวลา ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} น.`;
                 }
@@ -762,6 +814,7 @@
                 const pData = await fetchPostJSON('getDashboardPranee'); 
                 if(pData.status === 'success') {
                     cachedPraneeData = pData.all_data || [];
+                    populateDynamicMonthFilter('p_filter_month', cachedPraneeData);
                     let now = new Date();
                     lastUpdatePranee = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth()+1).toString().padStart(2, '0')}/${now.getFullYear()+543} เวลา ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} น.`;
                 }
@@ -809,17 +862,22 @@
             
             let today = new Date();
             let startYear = today.getFullYear() - 1; 
-            let endYear = today.getFullYear() + 1;   
+            let currentYear = today.getFullYear();   
+            let currentMonth = today.getMonth(); 
+            
+            if (today.getDate() >= 21) {
+                currentMonth++;
+                if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+            }
             
             let d = new Date(startYear, 0, 1);
-            while (d <= new Date(endYear, 11, 31)) {
+            let limitDate = new Date(currentYear, currentMonth, 1);
+            while (d <= limitDate) {
                  const y = d.getFullYear(); const m = d.getMonth();
                  sel.add(new Option(`รอบ 21 ${thaiMonthsShort[m===0?11:m-1]} ${m===0?y+542:y+543} - 20 ${thaiMonthsFull[m]} ${y+543}`, `${y}-${(m+1).toString().padStart(2,'0')}`));
                  d.setMonth(m + 1);
             }
-            let cY = today.getFullYear(); let cM = today.getMonth() + 1;
-            if (today.getDate() > 20) { cM += 1; if (cM > 12) { cM = 1; cY += 1; } }
-            const opt = sel.querySelector(`option[value="${cY}-${cM.toString().padStart(2, '0')}"]`);
+            const opt = sel.querySelector(`option[value="${currentYear}-${(currentMonth+1).toString().padStart(2, '0')}"]`);
             if(opt) opt.selected = true; else sel.value = 'ALL';
         }
 
@@ -1003,6 +1061,7 @@
                       if(data.status === 'disabled') { showDashboardMaintenance(); document.getElementById('loadingOverlay').style.display = 'none'; return; }
                       if(data.status === 'error') throw new Error(data.message); 
                       cachedKormorData = data.all_data || []; 
+                      populateDynamicMonthFilter('k_filter_month', cachedKormorData);
                       
                       let now = new Date();
                       lastUpdateKormor = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth()+1).toString().padStart(2, '0')}/${now.getFullYear()+543} เวลา ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} น.`;
@@ -1096,6 +1155,7 @@
                       if(data.status === 'disabled') { showDashboardMaintenance(); document.getElementById('loadingOverlay').style.display = 'none'; return; }
                       if(data.status === 'error') throw new Error(data.message); 
                       cachedPraneeData = data.all_data || []; 
+                      populateDynamicMonthFilter('p_filter_month', cachedPraneeData);
                       
                       let now = new Date();
                       lastUpdatePranee = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth()+1).toString().padStart(2, '0')}/${now.getFullYear()+543} เวลา ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} น.`;
@@ -2115,13 +2175,14 @@
         
         async function startAiSweep() {
             if(!currentAdmin || currentAdmin.role !== 'Master Admin') return;
+            const type = document.getElementById('sweep_type').value;
             const month = document.getElementById('sweep_month').value;
             const tambon = document.getElementById('sweep_tambon').value;
             const moo = document.getElementById('sweep_moo').value;
             
             const confirm = await Swal.fire({ 
                 title: 'เริ่มกวาดข้อมูลด้วย AI?', 
-                text: 'กระบวนการนี้อาจใช้เวลานาน (ประมาณ 2-3 วินาทีต่อแถว) ห้ามปิดหรือรีเฟรชหน้าต่างนี้จนกว่าจะเสร็จสิ้น', 
+                text: 'กระบวนการนี้อาจใช้เวลานาน (ประมาณ 3-5 วินาทีต่อแถว) ห้ามปิดหรือรีเฟรชหน้าต่างนี้จนกว่าจะเสร็จสิ้น', 
                 icon: 'warning', 
                 showCancelButton: true, 
                 confirmButtonText: 'เริ่มสแกนเลย' 
@@ -2135,10 +2196,10 @@
             isSweeping = true;
 
             try {
-                const data = await fetchPostJSON('getAdminData', { type: 'kormor', tambon: tambon, month: month, moo: moo, scanAll: true });
+                const data = await fetchPostJSON('getAdminData', { type: type, tambon: tambon, month: month, moo: moo, scanAll: true });
                 let records = data.records || [];
                 
-                records = records.filter(r => !(r.remark || "").includes('[AI ตรวจผ่าน]'));
+                records = records.filter(r => !(r.remark || "").includes('[AI ตรวจผ่าน]') && !(r.subject || "").includes('[AI ตรวจผ่าน]'));
                 records.sort((a, b) => b.row - a.row);
 
                 if(records.length === 0) {
@@ -2169,7 +2230,7 @@
                     tr.innerHTML = `
                         <td class="p-2 text-center text-gray-500 font-bold">${r.row}</td>
                         <td class="p-2"><b>${r.tambon}</b><br><span class="text-xs text-gray-500">${r.moo}</span></td>
-                        <td class="p-2 whitespace-normal break-words"><b>${r.subject}</b><br><span class="text-xs text-blue-600"><i class="fas fa-user"></i> ${r.reporter}</span></td>
+                        <td class="p-2 whitespace-normal break-words"><b>${r.subject}</b><br><span class="text-xs text-blue-600"><i class="fas ${type === 'kormor' ? 'fa-user' : 'fa-balance-scale'}"></i> ${type === 'kormor' ? r.reporter : 'งานไกล่เกลี่ย'}</span></td>
                         <td class="p-2 text-center text-xs font-bold text-orange-500 bg-orange-50" id="sweep_status_${r.row}"><i class="fas fa-spinner fa-spin mr-1"></i> กำลังวิเคราะห์...</td>
                     `;
                     tbody.prepend(tr);
@@ -2178,7 +2239,7 @@
                     document.getElementById('sweepProgressBar').style.width = `${Math.round(((processed+1)/total)*100)}%`;
 
                     try {
-                        const res = await fetchPostJSON('actionAiSweepSingle', { row: r.row, adminName: currentAdmin.name });
+                        const res = await fetchPostJSON('actionAiSweepSingle', { row: r.row, adminName: currentAdmin.name, tableType: type });
                         let statCell = document.getElementById(`sweep_status_${r.row}`);
                         
                         if(res.status === 'deleted') {
@@ -2215,9 +2276,9 @@
                 isSweeping = false;
                 document.getElementById('btnStartSweep').classList.remove('hidden');
                 document.getElementById('btnStopSweep').classList.add('hidden');
-                cachedKormorData = []; // Clear cache
+                if(type === 'kormor') cachedKormorData = []; else cachedPraneeData = [];
                 await prefetchData();
-                loadAdminData(); // Refresh main table
+                loadAdminData(); 
             }
         }
         
